@@ -4016,28 +4016,14 @@ static int cgroup_clone_children_write(struct cgroup *cgrp,
 
 static struct cftype cgroup_base_files[] = {
 	{
-		.name = "tasks",
-		.flags = CFTYPE_INSANE,		/* use "procs" instead */
-		.open = cgroup_tasks_open,
-		.write_u64 = cgroup_tasks_write,
-		.release = cgroup_pidlist_release,
-		.mode = S_IRUGO | S_IWUSR,
-	},
-	{
-		.name = CGROUP_FILE_GENERIC_PREFIX "procs",
+		.name = "cgroup.procs",
 		.open = cgroup_procs_open,
 		.write_u64 = cgroup_procs_write,
 		.release = cgroup_pidlist_release,
 		.mode = S_IRUGO | S_IWUSR,
 	},
 	{
-		.name = "notify_on_release",
-		.flags = CFTYPE_INSANE,
-		.read_u64 = cgroup_read_notify_on_release,
-		.write_u64 = cgroup_write_notify_on_release,
-	},
-	{
-		.name = CGROUP_FILE_GENERIC_PREFIX "event_control",
+		.name = "cgroup.event_control",
 		.write_string = cgroup_write_event_control,
 		.mode = S_IWUGO,
 	},
