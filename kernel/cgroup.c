@@ -4031,7 +4031,13 @@ static struct cftype cgroup_base_files[] = {
 		.mode = S_IRUGO | S_IWUSR,
 	},
 	{
-		.name = "cgroup.event_control",
+		.name = "notify_on_release",
+		.flags = CFTYPE_INSANE,
+		.read_u64 = cgroup_read_notify_on_release,
+		.write_u64 = cgroup_write_notify_on_release,
+	},
+	{
+		.name = CGROUP_FILE_GENERIC_PREFIX "event_control",
 		.write_string = cgroup_write_event_control,
 		.mode = S_IWUGO,
 	},
