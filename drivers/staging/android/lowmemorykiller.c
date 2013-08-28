@@ -49,6 +49,7 @@
 #include <linux/cpuset.h>
 #include <linux/show_mem_notifier.h>
 #include <linux/vmpressure.h>
+#include <linux/vmstat.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/almk.h>
@@ -425,7 +426,15 @@ static void lowmem_wakeup_kswapd(struct shrink_control *sc, int minfree)
 }
 #endif
 
-static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
+static unsigned long lowmem_count(struct shrinker *s, struct shrink_control *sc)
+{
+       return global_page_state(NR_ACTIVE_ANON) +
+               global_page_state(NR_ACTIVE_FILE) +
+               global_page_state(NR_INACTIVE_ANON) +
+               global_page_state(NR_INACTIVE_FILE);
+}
+
+static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 {
 	struct task_struct *tsk;
 	struct task_struct *selected = NULL;
@@ -650,7 +659,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 }
 
 static struct shrinker lowmem_shrinker = {
-	.shrink = lowmem_shrink,
+	.scan_objects = lowmem_scan,
+	.count_objects = lowmem_count,
 	.seeks = DEFAULT_SEEKS * 16
 };
 
