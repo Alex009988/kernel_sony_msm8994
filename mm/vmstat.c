@@ -8,11 +8,6 @@
  *  Copyright (C) 2006 Silicon Graphics, Inc.,
  *		Christoph Lameter <christoph@lameter.com>
  */
-/*
- * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
- * and licensed under the license of the file.
- */
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/err.h>
@@ -205,7 +200,7 @@ void set_pgdat_percpu_threshold(pg_data_t *pgdat,
 			continue;
 
 		threshold = (*calculate_pressure)(zone);
-		for_each_online_cpu(cpu)
+		for_each_possible_cpu(cpu)
 			per_cpu_ptr(zone->pageset, cpu)->stat_threshold
 							= threshold;
 	}
@@ -445,33 +440,29 @@ static inline void fold_diff(int *diff)
  * with the global counters. These could cause remote node cache line
  * bouncing and will have to be only done when necessary.
  */
-static void refresh_cpu_vm_stats(int cpu)
+static void refresh_cpu_vm_stats(void)
 {
 	struct zone *zone;
 	int i;
 	int global_diff[NR_VM_ZONE_STAT_ITEMS] = { 0, };
 
 	for_each_populated_zone(zone) {
-		struct per_cpu_pageset *p;
+		struct per_cpu_pageset __percpu *p = zone->pageset;
 
-		p = per_cpu_ptr(zone->pageset, cpu);
+		for (i = 0; i < NR_VM_ZONE_STAT_ITEMS; i++) {
+			int v;
 
-		for (i = 0; i < NR_VM_ZONE_STAT_ITEMS; i++)
-			if (p->vm_stat_diff[i]) {
-				unsigned long flags;
-				int v;
+			v = this_cpu_xchg(p->vm_stat_diff[i], 0);
+			if (v) {
 
-				local_irq_save(flags);
-				v = p->vm_stat_diff[i];
-				p->vm_stat_diff[i] = 0;
-				local_irq_restore(flags);
 				atomic_long_add(v, &zone->vm_stat[i]);
 				global_diff[i] += v;
 #ifdef CONFIG_NUMA
 				/* 3 seconds idle till flush */
-				p->expire = 3;
+				__this_cpu_write(p->expire, 3);
 #endif
 			}
+		}
 		cond_resched();
 #ifdef CONFIG_NUMA
 		/*
@@ -481,23 +472,24 @@ static void refresh_cpu_vm_stats(int cpu)
 		 * Check if there are pages remaining in this pageset
 		 * if not then there is nothing to expire.
 		 */
-		if (!p->expire || !p->pcp.count)
+		if (!__this_cpu_read(p->expire) ||
+			       !__this_cpu_read(p->pcp.count))
 			continue;
 
 		/*
 		 * We never drain zones local to this processor.
 		 */
 		if (zone_to_nid(zone) == numa_node_id()) {
-			p->expire = 0;
+			__this_cpu_write(p->expire, 0);
 			continue;
 		}
 
-		p->expire--;
-		if (p->expire)
+
+		if (__this_cpu_dec_return(p->expire))
 			continue;
 
-		if (p->pcp.count)
-			drain_zone_pages(zone, &p->pcp);
+		if (__this_cpu_read(p->pcp.count))
+			drain_zone_pages(zone, __this_cpu_ptr(&p->pcp));
 #endif
 	}
 	fold_diff(global_diff);
@@ -666,10 +658,10 @@ static char * const migratetype_names[MIGRATE_TYPES] = {
 	"Unmovable",
 	"Reclaimable",
 	"Movable",
-	"Reserve",
 #ifdef CONFIG_CMA
 	"CMA",
 #endif
+	"Reserve",
 #ifdef CONFIG_MEMORY_ISOLATION
 	"Isolate",
 #endif
@@ -749,7 +741,6 @@ const char * const vmstat_text[] = {
 	"nr_active_file",
 	"nr_unevictable",
 	"nr_mlock",
-	"nr_mlock_file",
 	"nr_anon_pages",
 	"nr_mapped",
 	"nr_file_pages",
@@ -1319,9 +1310,8 @@ int sysctl_stat_interval __read_mostly = HZ;
 
 static void vmstat_update(struct work_struct *w)
 {
-	refresh_cpu_vm_stats(smp_processor_id());
-	schedule_delayed_work_on(smp_processor_id(),
-		this_cpu_ptr(&vmstat_work),
+	refresh_cpu_vm_stats();
+	schedule_delayed_work(&__get_cpu_var(vmstat_work),
 		round_jiffies_relative(sysctl_stat_interval));
 }
 
@@ -1330,8 +1320,7 @@ static void start_cpu_timer(int cpu)
 	struct delayed_work *work = &per_cpu(vmstat_work, cpu);
 
 	INIT_DEFERRABLE_WORK(work, vmstat_update);
-	schedule_delayed_work_on(cpu,
-		&per_cpu(vmstat_work, cpu), 0);
+	schedule_delayed_work_on(cpu, work, __round_jiffies_relative(HZ, cpu));
 }
 
 /*
