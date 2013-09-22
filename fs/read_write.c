@@ -248,7 +248,7 @@ loff_t vfs_llseek(struct file *file, loff_t offset, int whence)
 
 	fn = no_llseek;
 	if (file->f_mode & FMODE_LSEEK) {
-		if (file->f_op && file->f_op->llseek)
+		if (file->f_op->llseek)
 			fn = file->f_op->llseek;
 	}
 	return fn(file, offset, whence);
@@ -376,7 +376,7 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 
 	if (!(file->f_mode & FMODE_READ))
 		return -EBADF;
-	if (!file->f_op || (!file->f_op->read && !file->f_op->aio_read))
+	if (!file->f_op->read && !file->f_op->aio_read)
 		return -EINVAL;
 	if (unlikely(!access_ok(VERIFY_WRITE, buf, count)))
 		return -EFAULT;
@@ -426,7 +426,7 @@ ssize_t __kernel_write(struct file *file, const char *buf, size_t count, loff_t 
 	const char __user *p;
 	ssize_t ret;
 
-	if (!file->f_op || (!file->f_op->write && !file->f_op->aio_write))
+	if (!file->f_op->write && !file->f_op->aio_write)
 		return -EINVAL;
 
 	old_fs = get_fs();
@@ -453,7 +453,7 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 
 	if (!(file->f_mode & FMODE_WRITE))
 		return -EBADF;
-	if (!file->f_op || (!file->f_op->write && !file->f_op->aio_write))
+	if (!file->f_op->write && !file->f_op->aio_write)
 		return -EINVAL;
 	if (unlikely(!access_ok(VERIFY_READ, buf, count)))
 		return -EFAULT;
@@ -721,11 +721,6 @@ static ssize_t do_readv_writev(int type, struct file *file,
 	io_fn_t fn;
 	iov_fn_t fnv;
 
-	if (!file->f_op) {
-		ret = -EINVAL;
-		goto out;
-	}
-
 	ret = rw_copy_check_uvector(type, uvector, nr_segs,
 				    ARRAY_SIZE(iovstack), iovstack, &iov);
 	if (ret <= 0)
@@ -772,7 +767,7 @@ ssize_t vfs_readv(struct file *file, const struct iovec __user *vec,
 {
 	if (!(file->f_mode & FMODE_READ))
 		return -EBADF;
-	if (!file->f_op || (!file->f_op->aio_read && !file->f_op->read))
+	if (!file->f_op->aio_read && !file->f_op->read)
 		return -EINVAL;
 
 	return do_readv_writev(READ, file, vec, vlen, pos);
@@ -785,7 +780,7 @@ ssize_t vfs_writev(struct file *file, const struct iovec __user *vec,
 {
 	if (!(file->f_mode & FMODE_WRITE))
 		return -EBADF;
-	if (!file->f_op || (!file->f_op->aio_write && !file->f_op->write))
+	if (!file->f_op->aio_write && !file->f_op->write)
 		return -EINVAL;
 
 	return do_readv_writev(WRITE, file, vec, vlen, pos);
@@ -900,10 +895,6 @@ static ssize_t compat_do_readv_writev(int type, struct file *file,
 	io_fn_t fn;
 	iov_fn_t fnv;
 
-	ret = -EINVAL;
-	if (!file->f_op)
-		goto out;
-
 	ret = -EFAULT;
 	if (!access_ok(VERIFY_READ, uvector, nr_segs*sizeof(*uvector)))
 		goto out;
@@ -959,7 +950,7 @@ static size_t compat_readv(struct file *file,
 		goto out;
 
 	ret = -EINVAL;
-	if (!file->f_op || (!file->f_op->aio_read && !file->f_op->read))
+	if (!file->f_op->aio_read && !file->f_op->read)
 		goto out;
 
 	ret = compat_do_readv_writev(READ, file, vec, vlen, pos);
@@ -1026,7 +1017,7 @@ static size_t compat_writev(struct file *file,
 		goto out;
 
 	ret = -EINVAL;
-	if (!file->f_op || (!file->f_op->aio_write && !file->f_op->write))
+	if (!file->f_op->aio_write && !file->f_op->write)
 		goto out;
 
 	ret = compat_do_readv_writev(WRITE, file, vec, vlen, pos);
