@@ -18,6 +18,7 @@ GZFLAGS		:=-9
 LIBGCC 		:= $(shell $(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
 
 KBUILD_DEFCONFIG := defconfig
+KBUILD_CFLAGS	+= -fno-pic
 
 # Optimize for big.LITTLE configuration
 KBUILD_CFLAGS	+= -march=armv8-a+crc \
