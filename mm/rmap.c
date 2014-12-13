@@ -863,7 +863,7 @@ static int page_referenced_file(struct page *page,
 	 */
 	BUG_ON(!PageLocked(page));
 
-	i_mmap_lock_write(mapping);
+	i_mmap_lock_read(mapping);
 
 	/*
 	 * i_mmap_rwsem does not stabilize mapcount at all, but mapcount
@@ -886,7 +886,7 @@ static int page_referenced_file(struct page *page,
 			break;
 	}
 
-	i_mmap_unlock_write(mapping);
+	i_mmap_unlock_read(mapping);
 	return referenced;
 }
 
@@ -975,14 +975,14 @@ static int page_mkclean_file(struct address_space *mapping, struct page *page)
 
 	BUG_ON(PageAnon(page));
 
-	i_mmap_lock_write(mapping);
+	i_mmap_lock_read(mapping);
 	vma_interval_tree_foreach(vma, &mapping->i_mmap, pgoff, pgoff) {
 		if (vma->vm_flags & VM_SHARED) {
 			unsigned long address = vma_address(page, vma);
 			ret += page_mkclean_one(page, vma, address);
 		}
 	}
-	i_mmap_unlock_write(mapping);
+	i_mmap_unlock_read(mapping);
 	return ret;
 }
 
@@ -1593,7 +1593,7 @@ static int try_to_unmap_file(struct page *page, enum ttu_flags flags,
 	if (PageHuge(page))
 		pgoff = page->index << compound_order(page);
 
-	i_mmap_lock_write(mapping);
+	i_mmap_lock_read(mapping);
 	if (target_vma) {
 		/* We don't handle non-linear vma on ramfs */
 		if (unlikely(!list_empty(&mapping->i_mmap_nonlinear)))
@@ -1680,7 +1680,7 @@ static int try_to_unmap_file(struct page *page, enum ttu_flags flags,
 	list_for_each_entry(vma, &mapping->i_mmap_nonlinear, shared.nonlinear)
 		vma->vm_private_data = NULL;
 out:
-	i_mmap_unlock_write(mapping);
+	i_mmap_unlock_read(mapping);
 	return ret;
 }
 
@@ -1801,7 +1801,8 @@ static int rmap_walk_file(struct page *page, int (*rmap_one)(struct page *,
 
 	if (!mapping)
 		return ret;
-	i_mmap_lock_write(mapping);
+
+	i_mmap_lock_read(mapping);
 	vma_interval_tree_foreach(vma, &mapping->i_mmap, pgoff, pgoff) {
 		unsigned long address = vma_address(page, vma);
 
@@ -1815,7 +1816,7 @@ static int rmap_walk_file(struct page *page, int (*rmap_one)(struct page *,
 	 * never contain migration ptes.  Decide what to do about this
 	 * limitation to linear when we need rmap_walk() on nonlinear.
 	 */
-	i_mmap_unlock_write(mapping);
+	i_mmap_unlock_read(mapping);
 	return ret;
 }
 
