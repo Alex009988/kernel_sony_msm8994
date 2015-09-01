@@ -3,6 +3,7 @@
  * Android IPC Subsystem
  *
  * Copyright (C) 2007-2008 Google, Inc.
+ * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -685,11 +686,6 @@ static int __binder_update_page_range(struct binder_proc *proc, int allocate,
 
 	if (mm) {
 		down_write(&mm->mmap_sem);
-		if (!mmget_still_valid(mm)) {
-			if (allocate == 0)
-				goto free_range;
-			goto err_no_vma;
-		}
 		vma = proc->vma;
 		if (vma && mm != proc->vma_vm_mm) {
 			pr_err("%d: vma mm and task mm mismatch\n",
@@ -928,7 +924,6 @@ static void binder_delete_free_buffer(struct binder_proc *proc,
 {
 	struct binder_buffer *prev, *next = NULL;
 	bool to_free = true;
-
 	BUG_ON(proc->buffers.next == &buffer->entry);
 	prev = binder_buffer_prev(buffer);
 	BUG_ON(!prev->free);
@@ -936,7 +931,7 @@ static void binder_delete_free_buffer(struct binder_proc *proc,
 		to_free = false;
 		binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
 			     "%d: merge free, buffer %pK share page with %pK\n",
-			      proc->pid, buffer->data, prev->data);
+			     proc->pid, buffer->data, prev->data);
 	}
 
 	if (!list_is_last(&buffer->entry, &proc->buffers)) {
@@ -2081,7 +2076,10 @@ static void binder_transaction(struct binder_proc *proc,
 		target_wait = &target_proc->wait;
 	}
 	e->to_proc = target_proc->pid;
-
+#ifdef CONFIG_FROZEN_APP
+	/* Wakeup frozen application cgroup */
+	cgroup_thawed_by_pid(target_proc->pid);
+#endif
 	/* TODO: reuse incoming transaction for reply */
 	t = kzalloc_preempt_disabled(sizeof(*t));
 	if (t == NULL) {
@@ -2174,7 +2172,7 @@ static void binder_transaction(struct binder_proc *proc,
 	if (!IS_ALIGNED(extra_buffers_size, sizeof(u64))) {
 		binder_user_error("%d:%d got transaction with unaligned buffers size, %lld\n",
 				  proc->pid, thread->pid,
-				  (u64)extra_buffers_size);
+				  extra_buffers_size);
 		return_error = BR_FAILED_REPLY;
 		goto err_bad_offset;
 	}
@@ -2331,7 +2329,9 @@ static void binder_transaction(struct binder_proc *proc,
 	list_add_tail(&tcomplete->entry, &thread->todo);
 	if (target_wait) {
 		if (reply || !(t->flags & TF_ONE_WAY)) {
+			preempt_disable();
 			wake_up_interruptible_sync(target_wait);
+			sched_preempt_enable_no_resched();
 		}
 		else {
 			wake_up_interruptible(target_wait);
@@ -2561,7 +2561,7 @@ int binder_thread_write(struct binder_proc *proc,
 				if (list_empty(&buffer->target_node->async_todo))
 					buffer->target_node->has_async_transaction = 0;
 				else
-					list_move_tail(buffer->target_node->async_todo.next, &thread->todo);
+					list_move_tail(buffer->target_node->async_todo.next, &proc->todo);
 			}
 			trace_binder_transaction_buffer_release(buffer);
 			binder_transaction_buffer_release(proc, buffer, NULL);
@@ -3434,7 +3434,8 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = -EINVAL;
 			goto err;
 		}
-		if (put_user_preempt_disabled(BINDER_CURRENT_PROTOCOL_VERSION, &ver->protocol_version)) {
+		if (put_user_preempt_disabled(BINDER_CURRENT_PROTOCOL_VERSION,
+			     &ver->protocol_version)) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -3546,11 +3547,6 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 		}
 	}
 #endif
-	if (vma->vm_end - vma->vm_start < BINDER_MIN_ALLOC) {
-		ret = -EINVAL;
-		failure_string = "VMA size < BINDER_MIN_ALLOC";
-		goto err_vma_too_small;
-	}
 	proc->pages = kzalloc(sizeof(proc->pages[0]) * ((vma->vm_end - vma->vm_start) / PAGE_SIZE), GFP_KERNEL);
 	if (proc->pages == NULL) {
 		ret = -ENOMEM;
@@ -3567,7 +3563,7 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 		ret = -ENOMEM;
 		failure_string = "alloc buffer struct";
 		goto err_alloc_buf_struct_failed;
-        }
+	}
 
 	/* binder_update_page_range assumes preemption is disabled */
 	preempt_disable();
@@ -3599,7 +3595,6 @@ err_alloc_buf_struct_failed:
 	kfree(proc->pages);
 	proc->pages = NULL;
 err_alloc_pages_failed:
-err_vma_too_small:
 	mutex_lock(&proc->context->binder_mmap_lock);
 	vfree(proc->buffer);
 	proc->buffer = NULL;
@@ -3628,10 +3623,10 @@ static int binder_open(struct inode *nodp, struct file *filp)
 	INIT_LIST_HEAD(&proc->todo);
 	init_waitqueue_head(&proc->wait);
 	proc->default_priority = task_nice(current);
-	INIT_LIST_HEAD(&proc->buffers);
 	binder_dev = container_of(filp->private_data, struct binder_device,
 				  miscdev);
 	proc->context = &binder_dev->context;
+	INIT_LIST_HEAD(&proc->buffers);
 
 	binder_lock(proc->context, __func__);
 
