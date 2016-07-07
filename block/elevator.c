@@ -229,9 +229,7 @@ int elevator_init(struct request_queue *q, char *name)
 	}
 
 	err = e->ops.elevator_init_fn(q, e);
-	if (err)
-		elevator_put(e);
-	return err;
+	return 0;
 }
 EXPORT_SYMBOL(elevator_init);
 
@@ -442,7 +440,7 @@ int elv_merge(struct request_queue *q, struct request **req, struct bio *bio)
 	/*
 	 * See if our hash lookup can find a potential backmerge.
 	 */
-	__rq = elv_rqhash_find(q, bio->bi_sector);;
+	__rq = elv_rqhash_find(q, bio->bi_sector);
 	if (__rq && elv_bio_merge_ok(__rq, bio)) {
 		*req = __rq;
 		return ELEVATOR_BACK_MERGE;
