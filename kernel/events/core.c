@@ -170,7 +170,7 @@ static struct srcu_struct pmus_srcu;
  */
 #ifdef CONFIG_PERF_EVENTS_USERMODE
 int sysctl_perf_event_paranoid __read_mostly = -1;
-#elif CONFIG_SECURITY_PERF_EVENTS_RESTRICT
+#elif defined CONFIG_SECURITY_PERF_EVENTS_RESTRICT
 int sysctl_perf_event_paranoid __read_mostly = 3;
 #else
 int sysctl_perf_event_paranoid __read_mostly = 1;
@@ -881,6 +881,7 @@ static void perf_event_ctx_unlock(struct perf_event *event,
 	mutex_unlock(&ctx->mutex);
 	put_ctx(ctx);
 }
+
 
 static void unclone_ctx(struct perf_event_context *ctx)
 {
@@ -3351,8 +3352,8 @@ static void perf_remove_from_owner(struct perf_event *event)
 		 * However we can safely take this lock because its the child
 		 * ctx->mutex.
 		 */
-		mutex_lock_nested(&owner->perf_event_mutex,
-					SINGLE_DEPTH_NESTING);
+		mutex_lock_nested(&owner->perf_event_mutex, SINGLE_DEPTH_NESTING);
+
 
 		/*
 		 * We have to re-check the event->owner field, if it is cleared
@@ -3563,7 +3564,7 @@ perf_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 	struct perf_event *event = file->private_data;
 	struct perf_event_context *ctx;
 	int ret;
-
+ 
 	ctx = perf_event_ctx_lock(event);
 	ret = perf_read_hw(event, buf, count);
 	perf_event_ctx_unlock(event, ctx);
@@ -3687,8 +3688,7 @@ static int perf_event_set_output(struct perf_event *event,
 				 struct perf_event *output_event);
 static int perf_event_set_filter(struct perf_event *event, void __user *arg);
 
-static long _perf_ioctl(struct perf_event *event, unsigned int cmd,
-			unsigned long arg)
+static long _perf_ioctl(struct perf_event *event, unsigned int cmd, unsigned long arg)
 {
 	void (*func)(struct perf_event *);
 	u32 flags = arg;
@@ -3745,15 +3745,15 @@ static long _perf_ioctl(struct perf_event *event, unsigned int cmd,
 
 static long perf_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-        struct perf_event *event = file->private_data;
-        struct perf_event_context *ctx;
-        long ret;
+	struct perf_event *event = file->private_data;
+	struct perf_event_context *ctx;
+	long ret;
 
-        ctx = perf_event_ctx_lock(event);
-        ret = _perf_ioctl(event, cmd, arg);
-        perf_event_ctx_unlock(event, ctx);
+	ctx = perf_event_ctx_lock(event);
+	ret = _perf_ioctl(event, cmd, arg);
+	perf_event_ctx_unlock(event, ctx);
 
-        return ret;
+	return ret;
 }
 
 #ifdef CONFIG_COMPAT
