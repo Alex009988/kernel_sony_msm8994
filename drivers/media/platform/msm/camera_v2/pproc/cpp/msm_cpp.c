@@ -1939,29 +1939,9 @@ static int msm_cpp_cfg_frame(struct cpp_device *cpp_dev,
 		return -EINVAL;
 	}
 
-	/* Stripe index starts at zero */
-	if ((!new_frame->num_strips) ||
-		(new_frame->first_stripe_index >= new_frame->num_strips) ||
-		(new_frame->last_stripe_index  >= new_frame->num_strips) ||
-		(new_frame->first_stripe_index >
-			new_frame->last_stripe_index)) {
-		pr_err("Invalid frame message, #stripes=%d, stripe indices=[%d,%d]\n",
-			new_frame->num_strips,
-			new_frame->first_stripe_index,
-			new_frame->last_stripe_index);
-		return -EINVAL;
-	}
-
-	if (!stripe_size) {
-		pr_err("Invalid frame message, invalid stripe_size (%d)!\n",
-			stripe_size);
-		return -EINVAL;
-	}
-
-	if ((stripe_base == UINT_MAX) ||
-		(new_frame->num_strips >
-			(UINT_MAX - 1 - stripe_base) / stripe_size)) {
-		pr_err("Invalid frame message, num_strips %d is large\n",
+	if (stripe_base == UINT_MAX || new_frame->num_strips >
+		(UINT_MAX - 1 - stripe_base) / stripe_size) {
+		pr_err("Invalid frame message,num_strips %d is large\n",
 			new_frame->num_strips);
 		return -EINVAL;
 	}
@@ -2235,7 +2215,7 @@ static int msm_cpp_cfg(struct cpp_device *cpp_dev,
 	if (copy_from_user(&k_frame_info,
 			(void __user *)ioctl_ptr->ioctl_ptr,
 			sizeof(k_frame_info)))
-		return -EFAULT;
+			return -EFAULT;
 
 	frame = msm_cpp_get_frame(ioctl_ptr);
 	if (!frame) {
@@ -2316,7 +2296,6 @@ static int msm_cpp_copy_from_ioctl_ptr(void *dst_ptr,
 	return ret ? -EFAULT : 0;
 }
 #endif
-
 
 static int msm_cpp_validate_ioctl_input(unsigned int cmd, void *arg,
 	struct msm_camera_v4l2_ioctl_t **ioctl_ptr)
