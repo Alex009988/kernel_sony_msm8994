@@ -44,6 +44,8 @@ int sysctl_oom_kill_allocating_task;
 int sysctl_oom_dump_tasks = 1;
 static DEFINE_SPINLOCK(zone_scan_lock);
 
+static unsigned long last_victim;
+
 #ifdef CONFIG_NUMA
 /**
  * has_intersects_mems_allowed() - check task eligiblity for kill
@@ -264,12 +266,32 @@ enum oom_scan_t oom_scan_process_thread(struct task_struct *task,
 		return OOM_SCAN_CONTINUE;
 
 	/*
-	 * This task already has access to memory reserves and is being killed.
-	 * Don't allow any other task to have access to the reserves.
+	 * We found a task that we already tried to kill, but it hasn't
+	 * finished dying yet.  Generally we want to avoid choosing another
+	 * victim until it finishes.  If we choose lots of victims then we'll
+	 * use up our memory reserves and none of the tasks will be able to
+	 * exit.
+	 *
+	 * ...but we can't wait forever.  If a task persistently refuses to
+	 * die then it might be waiting on a resource (mutex or whatever) that
+	 * won't be released until _some other_ task runs.  ...and maybe that
+	 * other is blocked waiting on memory (deadlock!).  If it's been
+	 * "long enough" then we'll just skip over existing victims and pick
+	 * someone new to kill.
 	 */
 	if (test_tsk_thread_flag(task, TIF_MEMDIE)) {
-		if (!force_kill)
-			return OOM_SCAN_ABORT;
+		if (unlikely(frozen(task)))
+			__thaw_task(task);
+		if (!force_kill) {
+			if (time_after(jiffies,
+				       last_victim + msecs_to_jiffies(100))) {
+				pr_warn("Task %s:%d refused to die\n",
+					task->comm, task->pid);
+				return OOM_SCAN_CONTINUE;
+			} else {
+				return OOM_SCAN_ABORT;
+			}
+		}
 	}
 	if (!task->mm)
 		return OOM_SCAN_CONTINUE;
@@ -280,9 +302,6 @@ enum oom_scan_t oom_scan_process_thread(struct task_struct *task,
 	 */
 	if (oom_task_origin(task))
 		return OOM_SCAN_SELECT;
-
-	if (task_will_free_mem(task) && !force_kill)
-		return OOM_SCAN_ABORT;
 
 	return OOM_SCAN_OK;
 }
@@ -320,14 +339,10 @@ static struct task_struct *select_bad_process(unsigned int *ppoints,
 			break;
 		};
 		points = oom_badness(p, NULL, nodemask, totalpages);
-		if (!points || points < chosen_points)
-			continue;
-		/* Prefer thread group leaders for display purposes */
-		if (points == chosen_points && thread_group_leader(chosen))
-			continue;
-
-		chosen = p;
-		chosen_points = points;
+		if (points > chosen_points) {
+			chosen = p;
+			chosen_points = points;
+		}
 	}
 	if (chosen)
 		get_task_struct(chosen);
@@ -416,31 +431,6 @@ void note_oom_kill(void)
 	atomic_inc(&oom_kills);
 }
 
-/**
- * mark_tsk_oom_victim - marks the given taks as OOM victim.
- * @tsk: task to mark
- */
-void mark_tsk_oom_victim(struct task_struct *tsk)
-{
-	set_tsk_thread_flag(tsk, TIF_MEMDIE);
-
-	/*
-	 * Make sure that the task is woken up from uninterruptible sleep
-	 * if it is frozen because OOM killer wouldn't be able to free
-	 * any memory and livelock. freezing_slow_path will tell the freezer
-	 * that TIF_MEMDIE tasks should be ignored.
-	 */
-	__thaw_task(tsk);
-}
-
-/**
- * unmark_oom_victim - unmarks the current task as OOM victim.
- */
-void unmark_oom_victim(void)
-{
-	clear_thread_flag(TIF_MEMDIE);
-}
-
 #define K(x) ((x) << (PAGE_SHIFT-10))
 /*
  * Must be called while holding a reference to p, which will be released upon
@@ -455,7 +445,6 @@ void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 	struct task_struct *child;
 	struct task_struct *t;
 	struct mm_struct *mm;
-	unsigned long victim_rss;
 	unsigned int victim_points = 0;
 	static DEFINE_RATELIMIT_STATE(oom_rs, DEFAULT_RATELIMIT_INTERVAL,
 					      DEFAULT_RATELIMIT_BURST);
@@ -464,8 +453,9 @@ void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 	 * If the task is already exiting, don't alarm the sysadmin or kill
 	 * its children or threads, just set TIF_MEMDIE so it can die quickly
 	 */
-	if (task_will_free_mem(p)) {
-		mark_tsk_oom_victim(p);
+	if (p->flags & PF_EXITING) {
+		set_tsk_thread_flag(p, TIF_MEMDIE);
+		last_victim = jiffies;
 		put_task_struct(p);
 		return;
 	}
@@ -527,8 +517,6 @@ void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 
 	/* mm cannot safely be dereferenced after task_unlock(victim) */
 	mm = victim->mm;
-	victim_rss = get_mm_rss(victim->mm);
-	mark_tsk_oom_victim(victim);
 	pr_err("Killed process %d (%s) total-vm:%lukB, anon-rss:%lukB, file-rss:%lukB\n",
 		task_pid_nr(victim), victim->comm, K(victim->mm->total_vm),
 		K(get_mm_counter(victim->mm, MM_ANONPAGES)),
@@ -560,11 +548,7 @@ void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 	rcu_read_unlock();
 
 	set_tsk_thread_flag(victim, TIF_MEMDIE);
-	trace_oom_sigkill(victim->pid,  victim->comm,
-			  victim_points,
-			  victim_rss,
-			  gfp_mask);
-
+	last_victim = jiffies;
 	do_send_sig_info(SIGKILL, SEND_SIG_FORCED, victim, true);
 	put_task_struct(victim);
 }
@@ -689,13 +673,10 @@ void out_of_memory(struct zonelist *zonelist, gfp_t gfp_mask,
 	 * If current has a pending SIGKILL or is exiting, then automatically
 	 * select it.  The goal is to allow it to allocate so that it may
 	 * quickly exit and free its memory.
-	 *
-	 * But don't select if current has already released its mm and cleared
-	 * TIF_MEMDIE flag at exit_mm(), otherwise an OOM livelock may occur.
 	 */
-	if (current->mm &&
-	    (fatal_signal_pending(current) || task_will_free_mem(current))) {
-		mark_tsk_oom_victim(current);
+	if (fatal_signal_pending(current) || current->flags & PF_EXITING) {
+		set_thread_flag(TIF_MEMDIE);
+		last_victim = jiffies;
 		return;
 	}
 
@@ -750,7 +731,7 @@ void pagefault_out_of_memory(void)
 	if (mem_cgroup_oom_synchronize(true))
 		return;
 
-	zonelist = node_zonelist(first_memory_node, GFP_KERNEL);
+	zonelist = node_zonelist(first_online_node, GFP_KERNEL);
 	if (try_set_zonelist_oom(zonelist, GFP_KERNEL)) {
 		out_of_memory(NULL, 0, 0, NULL, false);
 		clear_zonelist_oom(zonelist, GFP_KERNEL);
