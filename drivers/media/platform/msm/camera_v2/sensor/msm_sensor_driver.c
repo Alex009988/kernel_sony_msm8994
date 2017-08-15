@@ -169,7 +169,7 @@ static int32_t msm_sensor_fill_eeprom_subdevid_by_name(
 	if (!s_ctrl->sensordata->eeprom_name || !of_node)
 		return -EINVAL;
 
-	eeprom_name_len = strlen(s_ctrl->sensordata->eeprom_name);
+	eeprom_name_len = DSTRLEN(s_ctrl->sensordata->eeprom_name);
 	if (eeprom_name_len >= MAX_SENSOR_NAME)
 		return -EINVAL;
 
@@ -241,7 +241,7 @@ static int32_t msm_sensor_fill_actuator_subdevid_by_name(
 	if (!s_ctrl->sensordata->actuator_name || !of_node)
 		return -EINVAL;
 
-	actuator_name_len = strlen(s_ctrl->sensordata->actuator_name);
+	actuator_name_len = DSTRLEN(s_ctrl->sensordata->actuator_name);
 	if (actuator_name_len >= MAX_SENSOR_NAME)
 		return -EINVAL;
 
@@ -288,7 +288,7 @@ static int32_t msm_sensor_fill_ois_subdevid_by_name(
 	if (!s_ctrl->sensordata->ois_name || !of_node)
 		return -EINVAL;
 
-	ois_name_len = strlen(s_ctrl->sensordata->ois_name);
+	ois_name_len = DSTRLEN(s_ctrl->sensordata->ois_name);
 	if (ois_name_len >= MAX_SENSOR_NAME)
 		return -EINVAL;
 
@@ -716,17 +716,17 @@ int32_t msm_sensor_driver_probe(void *setting,
 		}
 	}
 
-	if (strlen(slave_info->sensor_name) >= MAX_SENSOR_NAME ||
-		strlen(slave_info->eeprom_name) >= MAX_SENSOR_NAME ||
-		strlen(slave_info->actuator_name) >= MAX_SENSOR_NAME ||
-		strlen(slave_info->ois_name) >= MAX_SENSOR_NAME) {
+	if (DSTRLEN(slave_info->sensor_name) >= MAX_SENSOR_NAME ||
+		DSTRLEN(slave_info->eeprom_name) >= MAX_SENSOR_NAME ||
+		DSTRLEN(slave_info->actuator_name) >= MAX_SENSOR_NAME ||
+		DSTRLEN(slave_info->ois_name) >= MAX_SENSOR_NAME) {
 		pr_err("failed: name len greater than 32.\n");
 		pr_err("sensor name len:%zu, eeprom name len: %zu.\n",
-			strlen(slave_info->sensor_name),
-			strlen(slave_info->eeprom_name));
+			DSTRLEN(slave_info->sensor_name),
+			DSTRLEN(slave_info->eeprom_name));
 		pr_err("actuator name len: %zu, ois name len:%zu.\n",
-			strlen(slave_info->actuator_name),
-			strlen(slave_info->ois_name));
+			DSTRLEN(slave_info->actuator_name),
+			DSTRLEN(slave_info->ois_name));
 		rc = -EINVAL;
 		goto free_slave_info;
 	}

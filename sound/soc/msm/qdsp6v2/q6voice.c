@@ -688,7 +688,7 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 			if (is_volte_session(v->session_id)) {
 				strlcpy(mvm_session_cmd.mvm_session.name,
 				"default volte voice",
-				strlen("default volte voice")+1);
+				DSTRLEN("default volte voice")+1);
 			} else if (is_voice2_session(v->session_id)) {
 				strlcpy(mvm_session_cmd.mvm_session.name,
 				VOICE2_SESSION_VSID_STR,
@@ -704,7 +704,7 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 			} else {
 				strlcpy(mvm_session_cmd.mvm_session.name,
 				"default modem voice",
-				strlen("default modem voice")+1);
+				DSTRLEN("default modem voice")+1);
 			}
 
 			v->mvm_state = CMD_STATUS_FAIL;
@@ -740,7 +740,7 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 				VSS_IMVM_CMD_CREATE_FULL_CONTROL_SESSION;
 			strlcpy(mvm_session_cmd.mvm_session.name,
 				"default voip",
-				strlen("default voip")+1);
+				DSTRLEN("default voip")+1);
 
 			v->mvm_state = CMD_STATUS_FAIL;
 
@@ -786,7 +786,7 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 			if (is_volte_session(v->session_id)) {
 				strlcpy(cvs_session_cmd.cvs_session.name,
 				"default volte voice",
-				strlen("default volte voice")+1);
+				DSTRLEN("default volte voice")+1);
 			} else if (is_voice2_session(v->session_id)) {
 				strlcpy(cvs_session_cmd.cvs_session.name,
 				VOICE2_SESSION_VSID_STR,
@@ -802,7 +802,7 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 			} else {
 			strlcpy(cvs_session_cmd.cvs_session.name,
 				"default modem voice",
-				strlen("default modem voice")+1);
+				DSTRLEN("default modem voice")+1);
 			}
 			v->cvs_state = CMD_STATUS_FAIL;
 
@@ -850,7 +850,7 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 					       common.mvs_info.network_type;
 			strlcpy(cvs_full_ctl_cmd.cvs_session.name,
 				"default q6 voice",
-				strlen("default q6 voice")+1);
+				DSTRLEN("default q6 voice")+1);
 
 			v->cvs_state = CMD_STATUS_FAIL;
 
