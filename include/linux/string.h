@@ -197,4 +197,14 @@ static __always_inline size_t str_has_prefix(const char *str, const char *prefix
 	return strncmp(str, prefix, len) == 0 ? len : 0;
 }
 
+/**
+ * Macro to get length of definite strings
+ *
+ * strlen is often used incorectly to get the
+ * length of strings defined at compile time.
+ * DSTRLEN can be used in place of strlen in
+ * these situations. - Joe Maples
+ */
+#define DSTRLEN(str) sizeof(str) - 1
+
 #endif /* _LINUX_STRING_H_ */
