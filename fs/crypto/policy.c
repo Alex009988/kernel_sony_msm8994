@@ -125,8 +125,7 @@ int fscrypt_ioctl_get_policy(struct file *filp, void __user *arg)
 	struct fscrypt_policy policy;
 	int res;
 
-	if (!inode->i_sb->s_cop->get_context ||
-			!inode->i_sb->s_cop->is_encrypted(inode))
+	if (!IS_ENCRYPTED(inode))
 		return -ENODATA;
 
 	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
@@ -165,11 +164,12 @@ int fscrypt_has_permitted_context(struct inode *parent, struct inode *child)
 	    !S_ISLNK(child->i_mode))
 		return 1;
 
-	/* no restrictions if the parent directory is not encrypted */
-	if (!parent->i_sb->s_cop->is_encrypted(parent))
+	/* No restrictions if the parent directory is unencrypted */
+	if (!IS_ENCRYPTED(parent))
 		return 1;
-	/* if the child directory is not encrypted, this is always a problem */
-	if (!parent->i_sb->s_cop->is_encrypted(child))
+
+	/* Encrypted directories must not contain unencrypted files */
+	if (!IS_ENCRYPTED(child))
 		return 0;
 	res = fscrypt_get_encryption_info(parent);
 	if (res)
