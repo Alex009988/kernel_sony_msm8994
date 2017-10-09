@@ -11,9 +11,10 @@
 #ifndef _FSCRYPT_PRIVATE_H
 #define _FSCRYPT_PRIVATE_H
 
-#include <linux/fscrypt_supp.h>
-
 #define FS_FNAME_CRYPTO_DIGEST_SIZE	32
+#define __FS_HAS_ENCRYPTION 1
+#include <linux/fscrypt.h>
+#include <crypto/hash.h>
 
 /* Encryption parameters */
 #define FS_XTS_TWEAK_SIZE		16
