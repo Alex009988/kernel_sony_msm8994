@@ -25,6 +25,7 @@
 #include <linux/scatterlist.h>
 #include <linux/ratelimit.h>
 #include <linux/dcache.h>
+#include <crypto/skcipher.h>
 #include "fscrypt_private.h"
 
 static unsigned int num_prealloc_crypto_pages = 32;
