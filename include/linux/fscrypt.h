@@ -208,4 +208,93 @@ static inline int fscrypt_prepare_lookup(struct inode *dir,
 	return 0;
 }
 
+/**
+ * fscrypt_prepare_setattr - prepare to change a possibly-encrypted inode's attributes
+ * @dentry: dentry through which the inode is being changed
+ * @attr: attributes to change
+ *
+ * Prepare for ->setattr() on a possibly-encrypted inode.  On an encrypted file,
+ * most attribute changes are allowed even without the encryption key.  However,
+ * without the encryption key we do have to forbid truncates.  This is needed
+ * because the size being truncated to may not be a multiple of the filesystem
+ * block size, and in that case we'd have to decrypt the final block, zero the
+ * portion past i_size, and re-encrypt it.  (We *could* allow truncating to a
+ * filesystem block boundary, but it's simpler to just forbid all truncates ---
+ * and we already forbid all other contents modifications without the key.)
+ *
+ * Return: 0 on success, -ENOKEY if the key is missing, or another -errno code
+ * if a problem occurred while setting up the encryption key.
+ */
+static inline int fscrypt_prepare_setattr(struct dentry *dentry,
+					  struct iattr *attr)
+{
+	if (attr->ia_valid & ATTR_SIZE)
+		return fscrypt_require_key(d_inode(dentry));
+	return 0;
+}
+
+/**
+ * fscrypt_prepare_symlink - prepare to create a possibly-encrypted symlink
+ * @dir: directory in which the symlink is being created
+ * @target: plaintext symlink target
+ * @len: length of @target excluding null terminator
+ * @max_len: space the filesystem has available to store the symlink target
+ * @disk_link: (out) the on-disk symlink target being prepared
+ *
+ * This function computes the size the symlink target will require on-disk,
+ * stores it in @disk_link->len, and validates it against @max_len.  An
+ * encrypted symlink may be longer than the original.
+ *
+ * Additionally, @disk_link->name is set to @target if the symlink will be
+ * unencrypted, but left NULL if the symlink will be encrypted.  For encrypted
+ * symlinks, the filesystem must call fscrypt_encrypt_symlink() to create the
+ * on-disk target later.  (The reason for the two-step process is that some
+ * filesystems need to know the size of the symlink target before creating the
+ * inode, e.g. to determine whether it will be a "fast" or "slow" symlink.)
+ *
+ * Return: 0 on success, -ENAMETOOLONG if the symlink target is too long,
+ * -ENOKEY if the encryption key is missing, or another -errno code if a problem
+ * occurred while setting up the encryption key.
+ */
+static inline int fscrypt_prepare_symlink(struct inode *dir,
+					  const char *target,
+					  unsigned int len,
+					  unsigned int max_len,
+					  struct fscrypt_str *disk_link)
+{
+	if (IS_ENCRYPTED(dir) || fscrypt_dummy_context_enabled(dir))
+		return __fscrypt_prepare_symlink(dir, len, max_len, disk_link);
+
+	disk_link->name = (unsigned char *)target;
+	disk_link->len = len + 1;
+	if (disk_link->len > max_len)
+		return -ENAMETOOLONG;
+	return 0;
+}
+
+/**
+ * fscrypt_encrypt_symlink - encrypt the symlink target if needed
+ * @inode: symlink inode
+ * @target: plaintext symlink target
+ * @len: length of @target excluding null terminator
+ * @disk_link: (in/out) the on-disk symlink target being prepared
+ *
+ * If the symlink target needs to be encrypted, then this function encrypts it
+ * into @disk_link->name.  fscrypt_prepare_symlink() must have been called
+ * previously to compute @disk_link->len.  If the filesystem did not allocate a
+ * buffer for @disk_link->name after calling fscrypt_prepare_link(), then one
+ * will be kmalloc()'ed and the filesystem will be responsible for freeing it.
+ *
+ * Return: 0 on success, -errno on failure
+ */
+static inline int fscrypt_encrypt_symlink(struct inode *inode,
+					  const char *target,
+					  unsigned int len,
+					  struct fscrypt_str *disk_link)
+{
+	if (IS_ENCRYPTED(inode))
+		return __fscrypt_encrypt_symlink(inode, target, len, disk_link);
+	return 0;
+}
+
 #endif	/* _LINUX_FSCRYPT_H */
