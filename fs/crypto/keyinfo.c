@@ -292,20 +292,10 @@ out:
 	return res;
 }
 
-void fscrypt_put_encryption_info(struct inode *inode, struct fscrypt_info *ci)
+void fscrypt_put_encryption_info(struct inode *inode)
 {
-	struct fscrypt_info *prev;
-
-	if (ci == NULL)
-		ci = ACCESS_ONCE(inode->i_crypt_info);
-	if (ci == NULL)
-		return;
-
-	prev = cmpxchg(&inode->i_crypt_info, ci, NULL);
-	if (prev != ci)
-		return;
-
-	put_crypt_info(ci);
+	put_crypt_info(inode->i_crypt_info);
+	inode->i_crypt_info = NULL;
 }
 EXPORT_SYMBOL(fscrypt_put_encryption_info);
 
