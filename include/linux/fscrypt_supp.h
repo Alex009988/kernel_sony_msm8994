@@ -51,7 +51,6 @@ extern void fscrypt_put_encryption_info(struct inode *, struct fscrypt_info *);
 extern int fscrypt_setup_filename(struct inode *, const struct qstr *,
 				int lookup, struct fscrypt_name *);
 extern void fscrypt_free_filename(struct fscrypt_name *);
-extern u32 fscrypt_fname_encrypted_size(const struct inode *, u32);
 extern int fscrypt_fname_alloc_buffer(const struct inode *, u32,
 				struct fscrypt_str *);
 extern void fscrypt_fname_free_buffer(struct fscrypt_str *);
