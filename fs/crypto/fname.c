@@ -298,34 +298,29 @@ int fscrypt_fname_disk_to_usr(struct inode *inode,
 EXPORT_SYMBOL(fscrypt_fname_disk_to_usr);
 
 /**
- * fscrypt_fname_usr_to_disk() - converts a filename from user space to disk
- * space
+ * fscrypt_setup_filename() - prepare to search a possibly encrypted directory
+ * @dir: the directory that will be searched
+ * @iname: the user-provided filename being searched for
+ * @lookup: 1 if we're allowed to proceed without the key because it's
+ *	->lookup() or we're finding the dir_entry for deletion; 0 if we cannot
+ *	proceed without the key because we're going to create the dir_entry.
+ * @fname: the filename information to be filled in
  *
- * The caller must have allocated sufficient memory for the @oname string.
+ * Given a user-provided filename @iname, this function sets @fname->disk_name
+ * to the name that would be stored in the on-disk directory entry, if possible.
+ * If the directory is unencrypted this is simply @iname.  Else, if we have the
+ * directory's encryption key, then @iname is the plaintext, so we encrypt it to
+ * get the disk_name.
+ *
+ * Else, for keyless @lookup operations, @iname is the presented ciphertext, so
+ * we decode it to get either the ciphertext disk_name (for short names) or the
+ * fscrypt_digested_name (for long names).  Non-@lookup operations will be
+ * impossible in this case, so we fail them with ENOKEY.
+ *
+ * If successful, fscrypt_free_filename() must be called later to clean up.
  *
  * Return: 0 on success, -errno on failure
  */
-int fscrypt_fname_usr_to_disk(struct inode *inode,
-			const struct qstr *iname,
-			struct fscrypt_str *oname)
-{
-	if (fscrypt_is_dot_dotdot(iname)) {
-		oname->name[0] = '.';
-		oname->name[iname->len - 1] = '.';
-		oname->len = iname->len;
-		return 0;
-	}
-	if (inode->i_crypt_info)
-		return fname_encrypt(inode, iname, oname);
-	/*
-	 * Without a proper key, a user is not allowed to modify the filenames
-	 * in a directory. Consequently, a user space name cannot be mapped to
-	 * a disk-space name
-	 */
-	return -ENOKEY;
-}
-EXPORT_SYMBOL(fscrypt_fname_usr_to_disk);
-
 int fscrypt_setup_filename(struct inode *dir, const struct qstr *iname,
 			      int lookup, struct fscrypt_name *fname)
 {

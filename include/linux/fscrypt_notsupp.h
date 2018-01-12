@@ -143,11 +143,13 @@ static inline int fscrypt_fname_disk_to_usr(struct inode *inode,
 	return -EOPNOTSUPP;
 }
 
-static inline int fscrypt_fname_usr_to_disk(struct inode *inode,
-					    const struct qstr *iname,
-					    struct fscrypt_str *oname)
+static inline bool fscrypt_match_name(const struct fscrypt_name *fname,
+				      const u8 *de_name, u32 de_name_len)
 {
-	return -EOPNOTSUPP;
+	/* Encryption support disabled; use standard comparison */
+	if (de_name_len != fname->disk_name.len)
+		return false;
+	return !memcmp(de_name, fname->disk_name.name, fname->disk_name.len);
 }
 
 /* bio.c */

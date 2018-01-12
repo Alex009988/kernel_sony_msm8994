@@ -57,8 +57,6 @@ extern int fscrypt_fname_alloc_buffer(const struct inode *, u32,
 extern void fscrypt_fname_free_buffer(struct fscrypt_str *);
 extern int fscrypt_fname_disk_to_usr(struct inode *, u32, u32,
 			const struct fscrypt_str *, struct fscrypt_str *);
-extern int fscrypt_fname_usr_to_disk(struct inode *, const struct qstr *,
-			struct fscrypt_str *);
 
 /* bio.c */
 extern void fscrypt_decrypt_bio_pages(struct fscrypt_ctx *, struct bio *);
