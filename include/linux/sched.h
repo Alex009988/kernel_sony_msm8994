@@ -1248,6 +1248,7 @@ struct task_struct {
 
 	/* Per-thread vma caching: */
 	struct vmacache vmacache;
+	u64 vmacache_seqnum;
 
 #if defined(SPLIT_RSS_COUNTING)
 	struct task_rss_stat	rss_stat;
