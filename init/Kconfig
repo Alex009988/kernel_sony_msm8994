@@ -896,6 +896,24 @@ config RESOURCE_COUNTERS
 	  This option enables controller independent resource accounting
 	  infrastructure that works with cgroups.
 
+config CGROUP_SCHEDTUNE
+	bool "Task boosting cgroup subsystem for EAS (EXPERIMENTAL)"
+	depends on SCHED_TUNE
+	help
+	  This option provides the "schedtune" controller which improve the
+	  flexibility of the task boosting mechanism by introducing the support
+	  to define "per task" boost values.
+
+	  This new controller:
+	  1. allows only a two layers hierarchy, where the root defines the
+	     system-wide boost value and its direct childs define each one a
+	     different "class of tasks" to be boosted with a different value
+	  2. supports up to 16 different task classes, each one which could be
+	     configured with a different boost value
+
+	  Only if you are testing a kernel with energy-aware scheduler
+	  support, you might want to say Y here.
+
 config MEMCG
 	bool "Memory Resource Controller for Control Groups"
 	depends on RESOURCE_COUNTERS
@@ -1161,7 +1179,6 @@ config SCHED_AUTOGROUP
 
 config SCHED_TUNE
 	bool "Tasks boosting for energy-aware scheduler (EXPERIMENTAL)"
-	depends on SMP
 	help
 	  This option enable the system-wide support for task boosting.
 	  When this support is enabled a new sysctl interface is exposed to
@@ -1186,6 +1203,9 @@ config SCHED_TUNE
 
 	  Only if you are testing a kernel with energy-aware scheduler support,
 	  you might want to say Y here.
+
+config MM_OWNER
+	bool
 
 config SYSFS_DEPRECATED
 	bool "Enable deprecated sysfs features to support old userspace tools"

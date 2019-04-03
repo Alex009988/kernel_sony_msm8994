@@ -27,7 +27,7 @@ config DEFAULT_MESSAGE_LOGLEVEL
 
 config ENABLE_WARN_DEPRECATED
 	bool "Enable __deprecated logic"
-	default n
+	default y
 	help
 	  Enable the __deprecated logic in the kernel build.
 	  Disable this to suppress the "warning: 'foo' is deprecated
@@ -35,26 +35,11 @@ config ENABLE_WARN_DEPRECATED
 
 config ENABLE_MUST_CHECK
 	bool "Enable __must_check logic"
-	default n
+	default y
 	help
 	  Enable the __must_check logic in the kernel build.  Disable this to
 	  suppress the "warning: ignoring return value of 'foo', declared with
 	  attribute warn_unused_result" messages.
-
-config FIRE_WATCHDOG
-	bool "Provide watchdog trigger"
-	default n
-	depends on PRINTK && MSM_WATCHDOG_V2
-	help
-	  Provide a way to trigger watchdog for debugging purpose.
-
-config DUMP_ALL_STACKS
-	bool "Show all task stack information in logbuf on panic"
-	default n
-	depends on PRINTK && MSM_WATCHDOG_V2
-	help
-	  Selecting this option for debugging purpose to dump all task stack
-	  under watchdog disable condition.
 
 config FRAME_WARN
 	int "Warn for stack frames larger than (needs gcc 4.4)"
@@ -100,7 +85,7 @@ config READABLE_ASM
 
 config UNUSED_SYMBOLS
 	bool "Enable unused/obsolete exported symbols"
-	default n
+	default y if X86
 	help
 	  Unused but exported symbols make the kernel needlessly bigger.  For
 	  that reason most of these unused exports will soon be removed.  This
@@ -135,64 +120,6 @@ config DEBUG_FS
 
 	  For detailed documentation on the debugfs API, see
 	  Documentation/DocBook/filesystems.
-
-	  If unsure, say N.
-
-config DEBUG_FS_DIGEST0
-	hex "First digest value for debugfs protection"
-	depends on DEBUG_FS
-	help
-	  Enable this option to be able to require password during mount debugfs.
-
-	  If unsure, say N.
-
-config DEBUG_FS_DIGEST1
-	hex "Second digest value for debugfs protection"
-	depends on DEBUG_FS
-	help
-	  Enable this option to be able to require password during mount debugfs.
-
-	  If unsure, say N.
-
-config DEBUG_FS_DIGEST2
-	hex "Third digest value for debugfs protection"
-	depends on DEBUG_FS
-	help
-	  Enable this option to be able to require password during mount debugfs.
-
-	  If unsure, say N.
-
-config DEBUG_FS_DIGEST3
-	hex "Fourth digest value for debugfs protection"
-	depends on DEBUG_FS
-	help
-	  Enable this option to be able to require password during mount debugfs.
-
-	  If unsure, say N.
-
-config DEBUG_FS_DIGEST4
-	hex "Fifth digest value for debugfs protection"
-	depends on DEBUG_FS
-	help
-	  Enable this option to be able to require password during mount debugfs.
-
-	  If unsure, say N.
-
-config DEBUG_FS_WHITE_LIST
-	string "The debugfs protection white list"
-	depends on DEBUG_FS
-	help
-	  Enable this option to set the directory path list separated by colon
-	  which don't need to protect by password.
-
-	  If unsure, say N.
-
-config DEBUG_FS_PRINT_DIGEST
-	bool "Print debugfs digest value for debug purpose"
-	depends on DEBUG_FS
-	default n
-	help
-	  Enable this option to print the calculated digest value.
 
 	  If unsure, say N.
 
@@ -243,7 +170,6 @@ config DEBUG_SECTION_MISMATCH
 
 config DEBUG_KERNEL
 	bool "Kernel debugging"
-	default n
 	help
 	  Say Y here if you are developing drivers or trying to debug and
 	  identify kernel problems.
@@ -426,8 +352,8 @@ config BOOTPARAM_HUNG_TASK_PANIC_VALUE
 
 config SCHED_DEBUG
 	bool "Collect scheduler debugging info"
-	depends on PROC_FS
-	default n
+	depends on DEBUG_KERNEL && PROC_FS
+	default y
 	help
 	  If you say Y here, the /proc/sched_debug file will be provided
 	  that can help debug the scheduler. The runtime overhead of this
@@ -436,7 +362,7 @@ config SCHED_DEBUG
 config SYSRQ_SCHED_DEBUG
 	bool "Print scheduling debugging info from sysrq-trigger"
 	depends on SCHED_DEBUG
-	default n
+	default y
 	help
 	  If you say Y here, the "show-task-states(T)" and
 	  "show-blocked-tasks(W)" sysrq-triggers will print additional
@@ -615,39 +541,10 @@ config DEBUG_KMEMLEAK_DEFAULT_OFF
 	  Say Y here to disable kmemleak by default. It can then be enabled
 	  on the command line via kmemleak=on.
 
-config DEBUG_TASK_STACK_SCAN_OFF
-	bool "Disable kmemleak task stack scan by default"
-	depends on DEBUG_KMEMLEAK
-	help
-	  Say Y here to disable kmemleak task stack scan by default
-	  at compile time. It can be enabled later if required by
-	  writing to the debugfs entry :
-	  echo "stack=on" > /sys/kernel/debug/kmemleak.
-
-config SCHED_STACK_END_CHECK
-	bool "Detect stack corruption on calls to schedule()"
-	default n
-	help
-	  This option checks for a stack overrun on calls to schedule().
-	  If the stack end location is found to be over written always panic as
-	  the content of the corrupted region can no longer be trusted.
-	  This is to ensure no erroneous behaviour occurs which could result in
-	  data corruption or a sporadic crash at a later stage once the region
-	  is examined. The runtime overhead introduced is minimal.
-
-config DEBUG_MODULE_SCAN_OFF
-	bool "Disable module memory scan for leaks by default"
-	depends on DEBUG_KMEMLEAK
-	help
-	  Say Y here to disable scanning kernel modules area list
-	  by default for memory leaks. Module scan an potentially
-	  run with irq/preemption disabled for considerable amount
-	  of time.
-
 config DEBUG_PREEMPT
 	bool "Debug preemptible kernel"
 	depends on DEBUG_KERNEL && PREEMPT && TRACE_IRQFLAGS_SUPPORT
-	default n
+	default y
 	help
 	  If you say Y here then the kernel will use a debug variant of the
 	  commonly used smp_processor_id() function and will print warnings
@@ -663,7 +560,7 @@ config DEBUG_RT_MUTEXES
 
 config DEBUG_PI_LIST
 	bool
-	default n
+	default y
 	depends on DEBUG_RT_MUTEXES
 
 config RT_MUTEX_TESTER
@@ -835,7 +732,7 @@ config DEBUG_LOCKING_API_SELFTESTS
 config STACKTRACE
 	bool "Stacktrace"
 	depends on STACKTRACE_SUPPORT
-	default n
+	default y
 
 config DEBUG_STACK_USAGE
 	bool "Stack utilization instrumentation"
@@ -866,7 +763,7 @@ config HAVE_DEBUG_BUGVERBOSE
 config DEBUG_BUGVERBOSE
 	bool "Verbose BUG() reporting (adds 70K)" if DEBUG_KERNEL && EXPERT
 	depends on BUG && (GENERIC_BUG || HAVE_DEBUG_BUGVERBOSE)
-	default n
+	default y
 	help
 	  Say Y here to make BUG() panics output the file name and line number
 	  of the BUG call as well as the EIP and oops trace.  This aids
@@ -1022,7 +919,7 @@ config FRAME_POINTER
 		(CRIS || M68K || FRV || UML || \
 		 AVR32 || SUPERH || BLACKFIN || MN10300 || METAG) || \
 		ARCH_WANT_FRAME_POINTERS
-	default n
+	default y if (DEBUG_INFO && UML) || ARCH_WANT_FRAME_POINTERS
 	help
 	  If you say Y here the resulting kernel image will be slightly
 	  larger and slower, but it gives very useful debugging information
@@ -1148,7 +1045,7 @@ config RCU_CPU_STALL_TIMEOUT
 config RCU_CPU_STALL_VERBOSE
 	bool "Print additional per-task information for RCU_CPU_STALL_DETECTOR"
 	depends on TREE_PREEMPT_RCU
-	default n
+	default y
 	help
 	  This option causes RCU to printk detailed per-task information
 	  for any tasks that are stalling the current RCU grace period.
