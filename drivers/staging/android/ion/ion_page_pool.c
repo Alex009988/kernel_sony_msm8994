@@ -90,13 +90,13 @@ void *ion_page_pool_alloc(struct ion_page_pool *pool, bool *from_pool)
 
 	*from_pool = true;
 
-	spin_lock(&pool->lock);
-	if (pool->high_count)
-		page = ion_page_pool_remove(pool, true);
-	else if (pool->low_count)
-		page = ion_page_pool_remove(pool, false);
-	spin_unlock(&pool->lock);
-
+	if (spin_trylock(&pool->lock)) {
+		if (pool->high_count)
+			page = ion_page_pool_remove(pool, true);
+		else if (pool->low_count)
+			page = ion_page_pool_remove(pool, false);
+		spin_unlock(&pool->lock);
+	}
 	if (!page) {
 		page = ion_page_pool_alloc_pages(pool);
 		*from_pool = false;
@@ -137,13 +137,7 @@ int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 	for (i = 0; i < nr_to_scan; i++) {
 		struct page *page;
 
-		/*
-		 * If the lock is taken, it's better to let other shrinkers
-		 * do their job, rather than spin here. We'll catch up
-		 * next time.
-		 */
-		if (!spin_trylock(&pool->lock))
-			break;
+		spin_lock(&pool->lock);
 		if (pool->low_count) {
 			page = ion_page_pool_remove(pool, false);
 		} else if (high && pool->high_count) {
