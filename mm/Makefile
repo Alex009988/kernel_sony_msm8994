@@ -69,3 +69,5 @@ obj-$(CONFIG_MEMTEST)		+= memtest.o
 obj-$(CONFIG_PROCESS_RECLAIM)	+= process_reclaim.o
 obj-$(CONFIG_ZPOOL)	+= zpool.o
 obj-$(CONFIG_ZSMALLOC)	+= zsmalloc.o
+
+CFLAGS_kmemleak.o += -DCONFIG_DEBUG_FS
