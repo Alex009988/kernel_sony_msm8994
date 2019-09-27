@@ -359,7 +359,7 @@ static int32_t msm_flash_gpio_init(
 static int32_t msm_flash_i2c_release(
 	struct msm_flash_ctrl_t *flash_ctrl)
 {
-	int32_t rc = 0;
+	int32_t rc;
 
 	if (!(&flash_ctrl->power_info) || !(&flash_ctrl->flash_i2c_client)) {
 		pr_err("%s:%d failed: %pK %pK\n",
@@ -368,6 +368,7 @@ static int32_t msm_flash_i2c_release(
 		return -EINVAL;
 	}
 
+	CDBG("Enter\n");
 	rc = msm_camera_power_down(&flash_ctrl->power_info,
 		flash_ctrl->flash_device_type,
 		&flash_ctrl->flash_i2c_client);
