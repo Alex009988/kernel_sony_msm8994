@@ -548,6 +548,15 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			continue;
 		}
 		tasksize = get_mm_rss(p->mm);
+#if defined(CONFIG_ZRAM)
+		if (total_pool_pages && total_ori_pages) {
+			lowmem_print(3, "tasksize : %d\n", tasksize);
+			tasksize += (int)total_pool_pages *
+				get_mm_counter(p->mm, MM_SWAPENTS)
+				/ total_ori_pages;
+			lowmem_print(3, "task real size : %d\n", tasksize);
+		}
+#endif
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
