@@ -547,6 +547,7 @@ static ssize_t devkmsg_writev(struct kiocb *iocb, const struct iovec *iv,
 	size_t len = iov_length(iv, count);
 	ssize_t ret = len;
 
+	return ret;
 	if (len > LOG_LINE_MAX)
 		return -EINVAL;
 	buf = kmalloc(len+1, GFP_KERNEL);
@@ -583,8 +584,6 @@ static ssize_t devkmsg_writev(struct kiocb *iocb, const struct iovec *iv,
 			endp++;
 			len -= endp - line;
 			line = endp;
-			if (strstr(line, "init"))
-				goto out;
 		}
 	}
 	line[len] = '\0';
