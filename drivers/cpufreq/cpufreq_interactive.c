@@ -185,13 +185,6 @@ static u64 round_to_nw_start(u64 jif,
 	return ret;
 }
 
-static inline int set_window_helper(
-			struct cpufreq_interactive_tunables *tunables)
-{
-	return sched_set_window(round_to_nw_start(get_jiffies_64(), tunables),
-			 usecs_to_jiffies(tunables->timer_rate));
-}
-
 static void cpufreq_interactive_timer_resched(unsigned long cpu,
 					      bool slack_only)
 {
@@ -452,10 +445,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	now = ktime_to_us(ktime_get());
 	spin_lock_irqsave(&ppol->load_lock, flags);
 	ppol->last_evaluated_jiffy = get_jiffies_64();
-
-	if (tunables->use_sched_load)
-		sched_get_cpus_busy(ppol->cpu_busy_times,
-				    ppol->policy->related_cpus);
 
 	if (display_on
 		&& tunables->timer_rate != tunables->prev_timer_rate)
