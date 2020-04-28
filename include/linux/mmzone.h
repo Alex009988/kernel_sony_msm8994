@@ -102,7 +102,6 @@ static inline int get_pageblock_migratetype(struct page *page)
 struct free_area {
 	struct list_head	free_list[MIGRATE_TYPES];
 	unsigned long		nr_free;
-	unsigned long		nr_free_cma;
 };
 
 struct pglist_data;
@@ -522,6 +521,12 @@ struct zone {
 	unsigned long		spanned_pages;
 	unsigned long		present_pages;
 	unsigned long		managed_pages;
+
+	/*
+	 * Number of MIGRATE_RESEVE page block. To maintain for just
+	 * optimization. Protected by zone->lock.
+	 */
+	int			nr_migrate_reserve_block;
 
 	/*
 	 * rarely used fields:
