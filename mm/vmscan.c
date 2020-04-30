@@ -2422,7 +2422,7 @@ static bool shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		 * to global LRU.
 		 */
 		if (global_reclaim(sc)) {
-			if (!cpuset_zone_allowed_hardwall(zone, GFP_KERNEL))
+			if (!cpuset_zone_allowed(zone, GFP_KERNEL | __GFP_HARDWALL))
 				continue;
 			if (sc->priority != DEF_PRIORITY &&
 			    !zone_reclaimable(zone))
@@ -2474,7 +2474,7 @@ static bool all_unreclaimable(struct zonelist *zonelist,
 			gfp_zone(sc->gfp_mask), sc->nodemask) {
 		if (!populated_zone(zone))
 			continue;
-		if (!cpuset_zone_allowed_hardwall(zone, GFP_KERNEL))
+		if (!cpuset_zone_allowed(zone, GFP_KERNEL | __GFP_HARDWALL))
 			continue;
 		if (zone_reclaimable(zone))
 			return false;
@@ -2532,7 +2532,7 @@ static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 			nodes_clear(shrink->nodes_to_scan);
 			for_each_zone_zonelist(zone, z, zonelist,
 					gfp_zone(sc->gfp_mask)) {
-				if (!cpuset_zone_allowed_hardwall(zone, GFP_KERNEL))
+				if (!cpuset_zone_allowed(zone, GFP_KERNEL | __GFP_HARDWALL))
 					continue;
 
 				lru_pages += zone_reclaimable_pages(zone);
@@ -3441,7 +3441,7 @@ void wakeup_kswapd(struct zone *zone, int order, enum zone_type classzone_idx)
 	if (!populated_zone(zone))
 		return;
 
-	if (!cpuset_zone_allowed_hardwall(zone, GFP_KERNEL))
+	if (!cpuset_zone_allowed(zone, GFP_KERNEL | __GFP_HARDWALL))
 		return;
 	pgdat = zone->zone_pgdat;
 	if (pgdat->kswapd_max_order < order) {
