@@ -13,9 +13,14 @@
 #include <linux/export.h>
 #include <linux/suspend.h>
 #include <linux/seq_file.h>
-#include <linux/debugfs.h>
 #include <linux/types.h>
 #include <trace/events/power.h>
+
+#ifdef CONFIG_DEBUG_FS
+#include <linux/debugfs.h>
+#else /* !CONFIG_DEBUG_FS */
+#include <linux/proc_fs.h>
+#endif /* !CONFIG_DEBUG_FS */
 
 #include "power.h"
 
@@ -1004,6 +1009,7 @@ static const struct file_operations wakeup_sources_stats_fops = {
 	.release = single_release,
 };
 
+#ifdef CONFIG_DEBUG_FS
 static int __init wakeup_sources_debugfs_init(void)
 {
 	wakeup_sources_stats_dentry = debugfs_create_file("wakeup_sources",
@@ -1012,3 +1018,13 @@ static int __init wakeup_sources_debugfs_init(void)
 }
 
 postcore_initcall(wakeup_sources_debugfs_init);
+#else /* !CONFIG_DEBUG_FS */
+static int __init wakeup_sources_proc_init(void)
+{
+	wakeup_sources_stats_dentry = proc_create("wakelocks", S_IRUGO, NULL,
+			&wakeup_sources_stats_fops);
+	return 0;
+}
+
+postcore_initcall(wakeup_sources_proc_init);
+#endif /* !CONFIG_DEBUG_FS */
