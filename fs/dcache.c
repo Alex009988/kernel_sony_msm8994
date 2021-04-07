@@ -228,7 +228,7 @@ static void __d_free(struct rcu_head *head)
 {
 	struct dentry *dentry = container_of(head, struct dentry, d_u.d_rcu);
 
-	kmem_cache_free(dentry_cache, dentry); 
+	kmem_cache_free(dentry_cache, dentry);
 }
 
 static void __d_free_external(struct rcu_head *head)
@@ -546,7 +546,7 @@ relock:
 	return d_kill(dentry, parent);
 }
 
-/* 
+/*
  * This is dput
  *
  * This is complicated by the fact that we do not want to put
@@ -565,7 +565,7 @@ relock:
 
 /*
  * dput - release a dentry
- * @dentry: dentry to release 
+ * @dentry: dentry to release
  *
  * Release a dentry. This will drop the usage count and if appropriate
  * call the dentry unlink method as well as removing it from the queues and
@@ -625,7 +625,7 @@ EXPORT_SYMBOL(dput);
  *
  * no dcache lock.
  */
- 
+
 int d_invalidate(struct dentry * dentry)
 {
 	/*
@@ -1063,7 +1063,7 @@ void shrink_dcache_for_umount(struct super_block *sb)
  * We descend to the next level whenever the d_subdirs
  * list is non-empty and continue searching.
  */
- 
+
 /**
  * have_submounts - check for mounts over a dentry
  * @parent: dentry to check.
@@ -1308,7 +1308,7 @@ EXPORT_SYMBOL(shrink_dcache_parent);
  * available. On a success the dentry is returned. The name passed in is
  * copied and the copy passed in may be reused after this call.
  */
- 
+
 struct dentry *__d_alloc(struct super_block *sb, const struct qstr *name)
 {
 	struct dentry *dentry;
@@ -1329,14 +1329,14 @@ struct dentry *__d_alloc(struct super_block *sb, const struct qstr *name)
         size_t size = offsetof(struct external_name, name[1]);
         struct external_name *p = kmalloc(size + name->len, GFP_KERNEL);
         if (!p) {
-			kmem_cache_free(dentry_cache, dentry); 
+			kmem_cache_free(dentry_cache, dentry);
 			return NULL;
 		}
 		atomic_set(&p->u.count, 1);
 		dname = p->name;
 	} else  {
 		dname = dentry->d_iname;
-	}	
+	}
 
 	dentry->d_name.len = name->len;
 	dentry->d_name.hash = name->hash;
@@ -1472,7 +1472,7 @@ static void __d_instantiate(struct dentry *dentry, struct inode *inode)
  * (or otherwise set) by the caller to indicate that it is now
  * in use by the dcache.
  */
- 
+
 void d_instantiate(struct dentry *entry, struct inode * inode)
 {
 	BUG_ON(!hlist_unhashed(&entry->d_u.d_alias));
@@ -2018,7 +2018,7 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
 	 * See Documentation/filesystems/path-lookup.txt for more details.
 	 */
 	rcu_read_lock();
-	
+
 	hlist_bl_for_each_entry_rcu(dentry, node, b, d_hash) {
 
 		if (dentry->d_name.hash != hash)
@@ -2127,7 +2127,7 @@ EXPORT_SYMBOL(d_validate);
  * it from the hash queues and waiting for
  * it to be deleted later when it has no users
  */
- 
+
 /**
  * d_delete - delete a dentry
  * @dentry: The dentry to delete
@@ -2135,7 +2135,7 @@ EXPORT_SYMBOL(d_validate);
  * Turn the dentry into a negative dentry if possible, otherwise
  * remove it from the hash queues so it can be deleted later
  */
- 
+
 void d_delete(struct dentry * dentry)
 {
 	struct inode *inode;
@@ -2187,7 +2187,7 @@ static void _d_rehash(struct dentry * entry)
  *
  * Adds a dentry to the hash according to its name.
  */
- 
+
 void d_rehash(struct dentry * entry)
 {
 	spin_lock(&entry->d_lock);
@@ -2778,9 +2778,9 @@ static int prepend_unreachable(char **buffer, int *buflen)
  *
  * "buflen" should be positive.
  */
-char *d_path(const struct path *path, char *buf, int buflen)
+char *d_path_outlen(const struct path *path, char *buf, int *buflen)
 {
-	char *res = buf + buflen;
+	char *res = buf + *buflen;
 	struct path root;
 	int error;
 
@@ -2797,12 +2797,12 @@ char *d_path(const struct path *path, char *buf, int buflen)
 	 */
 	if (path->dentry->d_op && path->dentry->d_op->d_dname &&
 	    (!IS_ROOT(path->dentry) || path->dentry != path->mnt->mnt_root))
-		return path->dentry->d_op->d_dname(path->dentry, buf, buflen);
+		return path->dentry->d_op->d_dname(path->dentry, buf, *buflen);
 
 	get_fs_root(current->fs, &root);
 	br_read_lock(&vfsmount_lock);
 	write_seqlock(&rename_lock);
-	error = path_with_deleted(path, &root, &res, &buflen);
+	error = path_with_deleted(path, &root, &res, buflen);
 	write_sequnlock(&rename_lock);
 	br_read_unlock(&vfsmount_lock);
 	if (error < 0)
@@ -2810,6 +2810,12 @@ char *d_path(const struct path *path, char *buf, int buflen)
 	path_put(&root);
 	return res;
 }
+
+char *d_path(const struct path *path, char *buf, int buflen)
+{
+	return d_path_outlen(path, buf, &buflen);
+}
+
 EXPORT_SYMBOL(d_path);
 
 /*
@@ -2997,7 +3003,7 @@ out:
  * Returns 0 otherwise.
  * Caller must ensure that "new_dentry" is pinned before calling is_subdir()
  */
-  
+
 int is_subdir(struct dentry *new_dentry, struct dentry *old_dentry)
 {
 	int result;
@@ -3134,7 +3140,7 @@ EXPORT_SYMBOL(d_tmpfile);
  * filesystems using synthetic inode numbers, and is necessary
  * to keep getcwd() working.
  */
- 
+
 ino_t find_inode_number(struct dentry *dir, struct qstr *name)
 {
 	struct dentry * dentry;
@@ -3189,10 +3195,10 @@ static void __init dcache_init(void)
 {
 	unsigned int loop;
 
-	/* 
+	/*
 	 * A constructor could be added for stable state like the lists,
 	 * but it is probably not worth it because of the cache nature
-	 * of the dcache. 
+	 * of the dcache.
 	 */
 	dentry_cache = KMEM_CACHE(dentry,
 		SLAB_RECLAIM_ACCOUNT|SLAB_PANIC|SLAB_MEM_SPREAD);
