@@ -924,8 +924,6 @@ void pm_wakep_autosleep_enabled(bool set)
 }
 #endif /* CONFIG_PM_AUTOSLEEP */
 
-static struct dentry *wakeup_sources_stats_dentry;
-
 /**
  * print_wakeup_source_stats - Print wakeup source statistics information.
  * @m: seq_file to print the statistics into.
@@ -1012,8 +1010,7 @@ static const struct file_operations wakeup_sources_stats_fops = {
 #ifdef CONFIG_DEBUG_FS
 static int __init wakeup_sources_debugfs_init(void)
 {
-	wakeup_sources_stats_dentry = debugfs_create_file("wakeup_sources",
-			S_IRUGO, NULL, NULL, &wakeup_sources_stats_fops);
+	debugfs_create_file("wakeup_sources", S_IRUGO, NULL, NULL, &wakeup_sources_stats_fops);
 	return 0;
 }
 
@@ -1021,8 +1018,7 @@ postcore_initcall(wakeup_sources_debugfs_init);
 #else /* !CONFIG_DEBUG_FS */
 static int __init wakeup_sources_proc_init(void)
 {
-	wakeup_sources_stats_dentry = proc_create("wakelocks", S_IRUGO, NULL,
-			&wakeup_sources_stats_fops);
+	proc_create("wakelocks", S_IRUGO, NULL, &wakeup_sources_stats_fops);
 	return 0;
 }
 
