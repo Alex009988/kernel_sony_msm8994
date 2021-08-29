@@ -2106,6 +2106,8 @@ extern void thread_group_cputime_adjusted(struct task_struct *p, cputime_t *ut, 
 
 #define PF_SU		0x00000002      /* task is su */
 
+#define PF_SU		0x00000002      /* task is su */
+
 /*
  * Only the _current_ task can read/write to tsk->flags, but other
  * tasks can access tsk->flags in readonly mode for example
