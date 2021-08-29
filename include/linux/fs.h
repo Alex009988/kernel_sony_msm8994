@@ -47,8 +47,6 @@ struct vfsmount;
 struct cred;
 struct swap_info_struct;
 struct seq_file;
-struct fscrypt_info;
-struct fscrypt_operations;
 
 extern void __init inode_init(void);
 extern void __init inode_init_early(void);
@@ -491,6 +489,15 @@ struct block_device {
 
 int mapping_tagged(struct address_space *mapping, int tag);
 
+/*
+ * Might pages of this file be mapped into userspace?
+ */
+static inline int mapping_mapped(struct address_space *mapping)
+{
+	return	!RB_EMPTY_ROOT(&mapping->i_mmap) ||
+		!list_empty(&mapping->i_mmap_nonlinear);
+}
+
 static inline void i_mmap_lock_write(struct address_space *mapping)
 {
 	down_write(&mapping->i_mmap_rwsem);
@@ -499,15 +506,6 @@ static inline void i_mmap_lock_write(struct address_space *mapping)
 static inline void i_mmap_unlock_write(struct address_space *mapping)
 {
 	up_write(&mapping->i_mmap_rwsem);
-}
-
-/*
- * Might pages of this file be mapped into userspace?
- */
-static inline int mapping_mapped(struct address_space *mapping)
-{
-	return	!RB_EMPTY_ROOT(&mapping->i_mmap) ||
-		!list_empty(&mapping->i_mmap_nonlinear);
 }
 
 /*
@@ -657,11 +655,6 @@ struct inode {
 #ifdef CONFIG_IMA
 	atomic_t		i_readcount; /* struct files open RO */
 #endif
-
-#if IS_ENABLED(CONFIG_FS_ENCRYPTION)
-	struct fscrypt_info	*i_crypt_info;
-#endif
-
 	void			*i_private; /* fs or device private pointer */
 };
 
@@ -927,6 +920,7 @@ static inline int file_check_writeable(struct file *filp)
 
 #define FL_POSIX	1
 #define FL_FLOCK	2
+#define FL_DELEG	4	/* NFSv4 delegation */
 #define FL_ACCESS	8	/* not trying to lock, just looking */
 #define FL_EXISTS	16	/* when unlocking, test for existence */
 #define FL_LEASE	32	/* lease held on this file */
@@ -934,6 +928,7 @@ static inline int file_check_writeable(struct file *filp)
 #define FL_SLEEP	128	/* A blocking lock */
 #define FL_DOWNGRADE_PENDING	256 /* Lease is being downgraded */
 #define FL_UNLOCK_PENDING	512 /* Lease is being broken */
+#define FL_OFDLCK	1024	/* lock is "owned" by struct file */
 
 /*
  * Special return value from posix_lock_file() and vfs_lock_file() for
@@ -957,6 +952,9 @@ struct file_lock_operations {
 
 struct lock_manager_operations {
 	int (*lm_compare_owner)(struct file_lock *, struct file_lock *);
+	unsigned long (*lm_owner_key)(struct file_lock *);
+	void (*lm_get_owner)(struct file_lock *, struct file_lock *);
+	void (*lm_put_owner)(struct file_lock *);
 	void (*lm_notify)(struct file_lock *);	/* unblock callback */
 	int (*lm_grant)(struct file_lock *, struct file_lock *, int);
 	void (*lm_break)(struct file_lock *);
@@ -975,14 +973,33 @@ int locks_in_grace(struct net *);
 /* that will die - we need it for nfs_lock_info */
 #include <linux/nfs_fs_i.h>
 
+/*
+ * struct file_lock represents a generic "file lock". It's used to represent
+ * POSIX byte range locks, BSD (flock) locks, and leases. It's important to
+ * note that the same struct is used to represent both a request for a lock and
+ * the lock itself, but the same object is never used for both.
+ *
+ * FIXME: should we create a separate "struct lock_request" to help distinguish
+ * these two uses?
+ *
+ * The i_flock list is ordered by:
+ *
+ * 1) lock type -- FL_LEASEs first, then FL_FLOCK, and finally FL_POSIX
+ * 2) lock owner
+ * 3) lock range start
+ * 4) lock range end
+ *
+ * Obviously, the last two criteria only matter for POSIX locks.
+ */
 struct file_lock {
 	struct file_lock *fl_next;	/* singly linked list for this inode  */
-	struct list_head fl_link;	/* doubly linked list of all locks */
+	struct hlist_node fl_link;	/* node in global lists */
 	struct list_head fl_block;	/* circular list of blocked processes */
 	fl_owner_t fl_owner;
 	unsigned int fl_flags;
 	unsigned char fl_type;
 	unsigned int fl_pid;
+	int fl_link_cpu;		/* what cpu's list is this on? */
 	struct pid *fl_nspid;
 	wait_queue_head_t fl_wait;
 	struct file *fl_file;
@@ -1018,12 +1035,12 @@ struct file_lock {
 extern void send_sigio(struct fown_struct *fown, int fd, int band);
 
 #ifdef CONFIG_FILE_LOCKING
-extern int fcntl_getlk(struct file *, struct flock __user *);
+extern int fcntl_getlk(struct file *, unsigned int, struct flock __user *);
 extern int fcntl_setlk(unsigned int, struct file *, unsigned int,
 			struct flock __user *);
 
 #if BITS_PER_LONG == 32
-extern int fcntl_getlk64(struct file *, struct flock64 __user *);
+extern int fcntl_getlk64(struct file *, unsigned int, struct flock64 __user *);
 extern int fcntl_setlk64(unsigned int, struct file *, unsigned int,
 			struct flock64 __user *);
 #endif
@@ -1036,30 +1053,26 @@ void locks_free_lock(struct file_lock *fl);
 extern void locks_init_lock(struct file_lock *);
 extern struct file_lock * locks_alloc_lock(void);
 extern void locks_copy_lock(struct file_lock *, struct file_lock *);
-extern void __locks_copy_lock(struct file_lock *, const struct file_lock *);
+extern void locks_copy_conflock(struct file_lock *, struct file_lock *);
 extern void locks_remove_posix(struct file *, fl_owner_t);
-extern void locks_remove_flock(struct file *);
+extern void locks_remove_file(struct file *);
 extern void locks_release_private(struct file_lock *);
 extern void posix_test_lock(struct file *, struct file_lock *);
 extern int posix_lock_file(struct file *, struct file_lock *, struct file_lock *);
 extern int posix_lock_file_wait(struct file *, struct file_lock *);
-extern int posix_unblock_lock(struct file *, struct file_lock *);
+extern int posix_unblock_lock(struct file_lock *);
 extern int vfs_test_lock(struct file *, struct file_lock *);
 extern int vfs_lock_file(struct file *, unsigned int, struct file_lock *, struct file_lock *);
 extern int vfs_cancel_lock(struct file *filp, struct file_lock *fl);
 extern int flock_lock_file_wait(struct file *filp, struct file_lock *fl);
-extern int __break_lease(struct inode *inode, unsigned int flags);
+extern int __break_lease(struct inode *inode, unsigned int flags, unsigned int type);
 extern void lease_get_mtime(struct inode *, struct timespec *time);
 extern int generic_setlease(struct file *, long, struct file_lock **);
 extern int vfs_setlease(struct file *, long, struct file_lock **);
 extern int lease_modify(struct file_lock **, int);
-extern int lock_may_read(struct inode *, loff_t start, unsigned long count);
-extern int lock_may_write(struct inode *, loff_t start, unsigned long count);
-extern void locks_delete_block(struct file_lock *waiter);
-extern void lock_flocks(void);
-extern void unlock_flocks(void);
 #else /* !CONFIG_FILE_LOCKING */
-static inline int fcntl_getlk(struct file *file, struct flock __user *user)
+static inline int fcntl_getlk(struct file *file, unsigned int cmd,
+			      struct flock __user *user)
 {
 	return -EINVAL;
 }
@@ -1071,7 +1084,8 @@ static inline int fcntl_setlk(unsigned int fd, struct file *file,
 }
 
 #if BITS_PER_LONG == 32
-static inline int fcntl_getlk64(struct file *file, struct flock64 __user *user)
+static inline int fcntl_getlk64(struct file *file, unsigned int cmd,
+				struct flock64 __user *user)
 {
 	return -EINVAL;
 }
@@ -1097,7 +1111,7 @@ static inline void locks_init_lock(struct file_lock *fl)
 	return;
 }
 
-static inline void __locks_copy_lock(struct file_lock *new, struct file_lock *fl)
+static inline void locks_copy_conflock(struct file_lock *new, struct file_lock *fl)
 {
 	return;
 }
@@ -1112,7 +1126,7 @@ static inline void locks_remove_posix(struct file *filp, fl_owner_t owner)
 	return;
 }
 
-static inline void locks_remove_flock(struct file *filp)
+static inline void locks_remove_file(struct file *filp)
 {
 	return;
 }
@@ -1133,8 +1147,7 @@ static inline int posix_lock_file_wait(struct file *filp, struct file_lock *fl)
 	return -ENOLCK;
 }
 
-static inline int posix_unblock_lock(struct file *filp,
-				     struct file_lock *waiter)
+static inline int posix_unblock_lock(struct file_lock *waiter)
 {
 	return -ENOENT;
 }
@@ -1161,7 +1174,7 @@ static inline int flock_lock_file_wait(struct file *filp,
 	return -ENOLCK;
 }
 
-static inline int __break_lease(struct inode *inode, unsigned int mode)
+static inline int __break_lease(struct inode *inode, unsigned int mode, unsigned int type)
 {
 	return 0;
 }
@@ -1187,31 +1200,6 @@ static inline int lease_modify(struct file_lock **before, int arg)
 {
 	return -EINVAL;
 }
-
-static inline int lock_may_read(struct inode *inode, loff_t start,
-				unsigned long len)
-{
-	return 1;
-}
-
-static inline int lock_may_write(struct inode *inode, loff_t start,
-				 unsigned long len)
-{
-	return 1;
-}
-
-static inline void locks_delete_block(struct file_lock *waiter)
-{
-}
-
-static inline void lock_flocks(void)
-{
-}
-
-static inline void unlock_flocks(void)
-{
-}
-
 #endif /* !CONFIG_FILE_LOCKING */
 
 
@@ -1305,19 +1293,16 @@ struct super_block {
 	const struct xattr_handler **s_xattr;
 
 	struct list_head	s_inodes;	/* all inodes */
-
-	const struct fscrypt_operations	*s_cop;
-
 	struct hlist_bl_head	s_anon;		/* anonymous dentries for (nfs) exporting */
 	struct list_head	s_mounts;	/* list of mounts; _not_ for fs use */
 	/* s_dentry_lru, s_nr_dentry_unused protected by dcache.c lru locks */
 	struct list_head	s_dentry_lru;	/* unused dentry lru */
-	int			s_nr_dentry_unused;	/* # of dentry on lru */
+	long			s_nr_dentry_unused;	/* # of dentry on lru */
 
 	/* s_inode_lru_lock protects s_inode_lru and s_nr_inodes_unused */
 	spinlock_t		s_inode_lru_lock ____cacheline_aligned_in_smp;
 	struct list_head	s_inode_lru;		/* unused inode lru */
-	int			s_nr_inodes_unused;	/* # of inodes on lru */
+	long			s_nr_inodes_unused;	/* # of inodes on lru */
 
 	struct block_device	*s_bdev;
 	struct backing_dev_info *s_bdi;
@@ -1375,6 +1360,10 @@ struct super_block {
 	 */
 	int s_stack_depth;
 };
+
+/* superblock cache pruning functions */
+extern void prune_icache_sb(struct super_block *sb, int nr_to_scan);
+extern void prune_dcache_sb(struct super_block *sb, int nr_to_scan);
 
 extern struct timespec current_fs_time(struct super_block *sb);
 
@@ -1689,8 +1678,8 @@ struct super_operations {
 	ssize_t (*quota_write)(struct super_block *, int, const char *, size_t, loff_t);
 #endif
 	int (*bdev_try_to_free_page)(struct super_block*, struct page*, gfp_t);
-	long (*nr_cached_objects)(struct super_block *);
-	long (*free_cached_objects)(struct super_block *, long);
+	int (*nr_cached_objects)(struct super_block *);
+	void (*free_cached_objects)(struct super_block *, int);
 };
 
 /*
@@ -1966,6 +1955,11 @@ extern bool our_mnt(struct vfsmount *mnt);
 
 extern int current_umask(void);
 
+static inline struct inode *file_inode(struct file *f)
+{
+	return f->f_inode;
+}
+
 /* /sys/fs */
 extern struct kobject *fs_kobj;
 
@@ -1976,7 +1970,7 @@ extern int rw_verify_area(int, struct file *, loff_t *, size_t);
 #define FLOCK_VERIFY_WRITE 2
 
 #ifdef CONFIG_FILE_LOCKING
-extern int locks_mandatory_locked(struct inode *);
+extern int locks_mandatory_locked(struct file *);
 extern int locks_mandatory_area(int, struct inode *, struct file *, loff_t, size_t);
 
 /*
@@ -1999,10 +1993,10 @@ static inline int mandatory_lock(struct inode *ino)
 	return IS_MANDLOCK(ino) && __mandatory_lock(ino);
 }
 
-static inline int locks_verify_locked(struct inode *inode)
+static inline int locks_verify_locked(struct file *file)
 {
-	if (mandatory_lock(inode))
-		return locks_mandatory_locked(inode);
+	if (mandatory_lock(file_inode(file)))
+		return locks_mandatory_locked(file);
 	return 0;
 }
 
@@ -2022,12 +2016,26 @@ static inline int locks_verify_truncate(struct inode *inode,
 
 static inline int break_lease(struct inode *inode, unsigned int mode)
 {
+	/*
+	 * Since this check is lockless, we must ensure that any refcounts
+	 * taken are done before checking inode->i_flock. Otherwise, we could
+	 * end up racing with tasks trying to set a new lease on this file.
+	 */
+	smp_mb();
 	if (inode->i_flock)
-		return __break_lease(inode, mode);
+		return __break_lease(inode, mode, FL_LEASE);
 	return 0;
 }
+
+static inline int break_deleg(struct inode *inode, unsigned int mode)
+{
+	if (inode->i_flock)
+		return __break_lease(inode, mode, FL_DELEG);
+	return 0;
+}
+
 #else /* !CONFIG_FILE_LOCKING */
-static inline int locks_mandatory_locked(struct inode *inode)
+static inline int locks_mandatory_locked(struct file *file)
 {
 	return 0;
 }
@@ -2049,7 +2057,7 @@ static inline int mandatory_lock(struct inode *inode)
 	return 0;
 }
 
-static inline int locks_verify_locked(struct inode *inode)
+static inline int locks_verify_locked(struct file *file)
 {
 	return 0;
 }
@@ -2065,6 +2073,10 @@ static inline int break_lease(struct inode *inode, unsigned int mode)
 	return 0;
 }
 
+static inline int break_deleg(struct inode *inode, unsigned int mode)
+{
+	return 0;
+}
 #endif /* CONFIG_FILE_LOCKING */
 
 /* fs/open.c */
@@ -2093,6 +2105,7 @@ extern struct file * dentry_open(const struct path *, int, const struct cred *);
 extern int filp_close(struct file *, fl_owner_t id);
 
 extern struct filename *getname(const char __user *);
+extern struct filename *getname_kernel(const char *);
 
 enum {
 	FILE_CREATED = 1,
@@ -2302,11 +2315,6 @@ extern int generic_permission(struct inode *, int);
 static inline bool execute_ok(struct inode *inode)
 {
 	return (inode->i_mode & S_IXUGO) || S_ISDIR(inode->i_mode);
-}
-
-static inline struct inode *file_inode(struct file *f)
-{
-	return f->f_inode;
 }
 
 static inline void file_start_write(struct file *file)
