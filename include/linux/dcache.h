@@ -54,11 +54,11 @@ struct qstr {
 #define hashlen_len(hashlen)  ((u32)((hashlen) >> 32))
 
 struct dentry_stat_t {
-	long nr_dentry;
-	long nr_unused;
-	long age_limit;          /* age in seconds */
-	long want_pages;         /* pages requested by system */
-	long dummy[2];
+	int nr_dentry;
+	int nr_unused;
+	int age_limit;          /* age in seconds */
+	int want_pages;         /* pages requested by system */
+	int dummy[2];
 };
 extern struct dentry_stat_t dentry_stat;
 
@@ -91,7 +91,7 @@ extern unsigned int full_name_hash(const unsigned char *, unsigned int);
  * large memory footprint increase).
  */
 #ifdef CONFIG_64BIT
-# define DNAME_INLINE_LEN 32 /* 192 bytes */
+# define DNAME_INLINE_LEN 96 /* 256 bytes */
 #else
 # ifdef CONFIG_SMP
 #  define DNAME_INLINE_LEN 36 /* 128 bytes */
@@ -210,6 +210,8 @@ struct dentry_operations {
 	(DCACHE_MOUNTED|DCACHE_NEED_AUTOMOUNT|DCACHE_MANAGE_TRANSIT)
 
 #define DCACHE_DENTRY_KILLED	0x100000
+
+#define DCACHE_ENCRYPTED_WITH_KEY	0x04000000 /* dir is encrypted with a valid key */
 
 extern seqlock_t rename_lock;
 
@@ -425,6 +427,23 @@ static inline bool d_is_su(const struct dentry *dentry)
 	       !memcmp(dentry->d_name.name, "su", 2);
 }
 
+/**
+ * d_inode - Get the actual inode of this dentry
+ * @dentry: The dentry to query
+ *
+ * This is the helper normal filesystems should use to get at their own inodes
+ * in their own dentries and ignore the layering superimposed upon them.
+ */
+static inline struct inode *d_inode(const struct dentry *dentry)
+{
+	return dentry->d_inode;
+}
+
+static inline bool d_is_negative(const struct dentry *dentry)
+{
+	return (dentry->d_inode == NULL);
+}
+
 extern int sysctl_vfs_cache_pressure;
 
 struct name_snapshot {
@@ -434,4 +453,8 @@ struct name_snapshot {
 void take_dentry_name_snapshot(struct name_snapshot *, struct dentry *);
 void release_dentry_name_snapshot(struct name_snapshot *);
 
+static inline unsigned long vfs_pressure_ratio(unsigned long val)
+{
+	return mult_frac(val, sysctl_vfs_cache_pressure, 100);
+}
 #endif	/* __LINUX_DCACHE_H */
