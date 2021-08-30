@@ -303,16 +303,6 @@ static inline int sdfat_remount_syncfs(struct super_block *sb)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
-       /* EMPTY */
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) */
-static inline void truncate_inode_pages_final(struct address_space *mapping)
-{
-	truncate_inode_pages(mapping, 0);
-}
-#endif
-
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 static inline sector_t __sdfat_bio_sector(struct bio *bio)
 {
