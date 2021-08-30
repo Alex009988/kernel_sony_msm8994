@@ -2177,7 +2177,6 @@ retry_find_task:
 		    !uid_eq(cred->euid, tcred->uid) &&
 		    !uid_eq(cred->euid, tcred->suid) &&
 		    !ns_capable(tcred->user_ns, CAP_SYS_NICE)) {
-		    !uid_eq(cred->euid, tcred->suid)) {
 			/*
 			 * if the default permission check fails, give each
 			 * cgroup a chance to extend the permission check
