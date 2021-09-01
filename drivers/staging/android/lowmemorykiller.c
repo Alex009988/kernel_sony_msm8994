@@ -438,7 +438,6 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 {
 	struct task_struct *tsk;
 	struct task_struct *selected = NULL;
-#endif
 	static const struct sched_param sched_zero_prio;
 	int rem = 0;
 	int tasksize;
