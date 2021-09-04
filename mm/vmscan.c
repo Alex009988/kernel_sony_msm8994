@@ -10,11 +10,6 @@
  *  Zone aware kswapd started 02/00, Kanoj Sarcar (kanoj@sgi.com).
  *  Multiqueue VM started 5.8.00, Rik van Riel.
  */
-/*
- * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
- * and licensed under the license of the file.
- */
 
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -137,10 +132,6 @@ struct scan_control {
  */
 int vm_swappiness = 15;
 unsigned long vm_total_pages;	/* The total number of pages which the VM controls */
-
-#ifdef CONFIG_SWAP_CONSIDER_CMA_FREE
-int swap_thresh_cma_free_pages = INT_MAX;
-#endif
 
 static LIST_HEAD(shrinker_list);
 static DECLARE_RWSEM(shrinker_rwsem);
@@ -864,63 +855,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		may_enter_fs = (sc->gfp_mask & __GFP_FS) ||
 			(PageSwapCache(page) && (sc->gfp_mask & __GFP_IO));
 
-		/*
-		 * The number of dirty pages determines if a zone is marked
-		 * reclaim_congested which affects wait_iff_congested. kswapd
-		 * will stall and start writing pages if the tail of the LRU
-		 * is all dirty unqueued pages.
-		 */
-		page_check_dirty_writeback(page, &dirty, &writeback);
-		if (dirty || writeback)
-			nr_dirty++;
-
-		if (dirty && !writeback)
-			nr_unqueued_dirty++;
-
-		/*
-		 * Treat this page as congested if the underlying BDI is or if
-		 * pages are cycling through the LRU so quickly that the
-		 * pages marked for immediate reclaim are making it to the
-		 * end of the LRU a second time.
-		 */
-		mapping = page_mapping(page);
-		if (((dirty || writeback) && mapping &&
-		     bdi_write_congested(mapping->backing_dev_info)) ||
-		    (writeback && PageReclaim(page)))
-			nr_congested++;
-
-		/*
-		 * If a page at the tail of the LRU is under writeback, there
-		 * are three cases to consider.
-		 *
-		 * 1) If reclaim is encountering an excessive number of pages
-		 *    under writeback and this page is both under writeback and
-		 *    PageReclaim then it indicates that pages are being queued
-		 *    for IO but are being recycled through the LRU before the
-		 *    IO can complete. Waiting on the page itself risks an
-		 *    indefinite stall if it is impossible to writeback the
-		 *    page due to IO error or disconnected storage so instead
-		 *    note that the LRU is being scanned too quickly and the
-		 *    caller can stall after page list has been processed.
-		 *
-		 * 2) Global reclaim encounters a page, memcg encounters a
-		 *    page that is not marked for immediate reclaim or
-		 *    the caller does not have __GFP_IO. In this case mark
-		 *    the page for immediate reclaim and continue scanning.
-		 *
-		 *    Require may_enter_fs because we would wait on fs, which
-		 *    may not have submitted IO yet. And the loop driver might
-		 *    enter reclaim, and deadlock if it waits on a page for
-		 *    which it is needed to do the write (loop masks off
-		 *    __GFP_IO|__GFP_FS for this reason); but more thought
-		 *    would probably show more reasons.
-		 *
-		 * 3) memcg encounters a page that is not already marked
-		 *    PageReclaim. memcg does not have any dirty pages
-		 *    throttling so we could easily OOM just because too many
-		 *    pages are in writeback and there is nothing else to
-		 *    reclaim. Wait for the writeback to complete.
-		 */
 		if (PageWriteback(page)) {
 			/*
 			 * memcg doesn't have any dirty pages throttling so we
@@ -974,21 +908,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		if (PageAnon(page) && !PageSwapCache(page)) {
 			if (!(sc->gfp_mask & __GFP_IO))
 				goto keep_locked;
-
-#ifdef CONFIG_SWAP_CONSIDER_CMA_FREE
-			if (swap_thresh_cma_free_pages != INT_MAX) {
-				/* Don't swap if NON MOVABLE is required
-				 * and the page is cma.
-				 */
-				if (!(sc->gfp_mask & __GFP_MOVABLE) &&
-						is_cma_pageblock(page) &&
-						(zone_page_state(zone, NR_FREE_CMA_PAGES) >
-						swap_thresh_cma_free_pages)) {
-					goto activate_locked;
-				}
-			}
-#endif /* CONFIG_SWAP_CONSIDER_CMA_FREE */
-
 			if (!add_to_swap(page, page_list))
 				goto activate_locked;
 			may_enter_fs = 1;
@@ -1202,6 +1121,66 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 	mod_zone_page_state(zone, NR_ISOLATED_FILE, -ret);
 	return ret;
 }
+
+#ifdef CONFIG_PROCESS_RECLAIM
+static unsigned long shrink_page(struct page *page,
+					struct zone *zone,
+					struct scan_control *sc,
+					enum ttu_flags ttu_flags,
+					unsigned long *ret_nr_dirty,
+					unsigned long *ret_nr_writeback,
+					bool force_reclaim,
+					struct list_head *ret_pages)
+{
+	int reclaimed;
+	LIST_HEAD(page_list);
+	list_add(&page->lru, &page_list);
+
+	reclaimed = shrink_page_list(&page_list, zone, sc, ttu_flags,
+				ret_nr_dirty, ret_nr_writeback,
+				force_reclaim);
+	if (!reclaimed)
+		list_splice(&page_list, ret_pages);
+
+	return reclaimed;
+}
+
+unsigned long reclaim_pages_from_list(struct list_head *page_list)
+{
+	struct scan_control sc = {
+		.gfp_mask = GFP_KERNEL,
+		.priority = DEF_PRIORITY,
+		.may_writepage = 1,
+		.may_unmap = 1,
+		.may_swap = 1,
+	};
+
+	LIST_HEAD(ret_pages);
+	struct page *page;
+	unsigned long dummy1, dummy2, dummy3, dummy4, dummy5;
+	unsigned long nr_reclaimed = 0;
+
+	while (!list_empty(page_list)) {
+		page = lru_to_page(page_list);
+		list_del(&page->lru);
+
+		ClearPageActive(page);
+		nr_reclaimed += shrink_page(page, page_zone(page), &sc,
+			TTU_UNMAP|TTU_IGNORE_ACCESS,
+			&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, true);
+	}
+
+	while (!list_empty(&ret_pages)) {
+		page = lru_to_page(&ret_pages);
+		list_del(&page->lru);
+		dec_zone_page_state(page, NR_ISOLATED_ANON +
+				page_is_file_cache(page));
+		putback_lru_page(page);
+	}
+
+	return nr_reclaimed;
+}
+#endif
 
 /*
  * Attempt to remove the specified page from its LRU.  Only take this page
@@ -1872,8 +1851,6 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	bool force_scan = false;
 	unsigned long ap, fp;
 	enum lru_list lru;
-	bool some_scanned;
-	int pass;
 
 	/*
 	 * If the zone or memcg is small, nr[l] can be 0.  This
@@ -1994,49 +1971,39 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	fraction[1] = fp;
 	denominator = ap + fp + 1;
 out:
-	some_scanned = false;
-	/* Only use force_scan on second pass. */
-	for (pass = 0; !some_scanned && pass < 2; pass++) {
-		for_each_evictable_lru(lru) {
-			int file = is_file_lru(lru);
-			unsigned long size;
-			unsigned long scan;
+	for_each_evictable_lru(lru) {
+		int file = is_file_lru(lru);
+		unsigned long size;
+		unsigned long scan;
 
-			size = get_lru_size(lruvec, lru);
-			scan = size >> sc->priority;
+		size = get_lru_size(lruvec, lru);
+		scan = size >> sc->priority;
 
-			if (!scan && pass && force_scan)
-				scan = min(size, SWAP_CLUSTER_MAX);
+		if (!scan && force_scan)
+			scan = min(size, SWAP_CLUSTER_MAX);
 
-			switch (scan_balance) {
-			case SCAN_EQUAL:
-				/* Scan lists relative to size */
-				break;
-			case SCAN_FRACT:
-				/*
-				 * Scan types proportional to swappiness and
-				 * their relative recent reclaim efficiency.
-				 */
-				scan = div64_u64(scan * fraction[file],
-							denominator);
-				break;
-			case SCAN_FILE:
-			case SCAN_ANON:
-				/* Scan one type exclusively */
-				if ((scan_balance == SCAN_FILE) != file)
-					scan = 0;
-				break;
-			default:
-				/* Look ma, no brain */
-				BUG();
-			}
-			nr[lru] = scan;
+		switch (scan_balance) {
+		case SCAN_EQUAL:
+			/* Scan lists relative to size */
+			break;
+		case SCAN_FRACT:
 			/*
-			 * Skip the second pass and don't force_scan,
-			 * if we found something to scan.
+			 * Scan types proportional to swappiness and
+			 * their relative recent reclaim efficiency.
 			 */
-			some_scanned |= !!scan;
+			scan = div64_u64(scan * fraction[file], denominator);
+			break;
+		case SCAN_FILE:
+		case SCAN_ANON:
+			/* Scan one type exclusively */
+			if ((scan_balance == SCAN_FILE) != file)
+				scan = 0;
+			break;
+		default:
+			/* Look ma, no brain */
+			BUG();
 		}
+		nr[lru] = scan;
 	}
 }
 
