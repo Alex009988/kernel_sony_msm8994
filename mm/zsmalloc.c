@@ -384,11 +384,6 @@ static u64 zs_zpool_total_size(void *pool)
 	return zs_get_total_pages(pool) << PAGE_SHIFT;
 }
 
-static unsigned long zs_zpool_compact(void *pool)
-{
-	return zs_compact(pool);
-}
-
 static struct zpool_driver zs_zpool_driver = {
 	.type =		"zsmalloc",
 	.owner =	THIS_MODULE,
@@ -400,7 +395,6 @@ static struct zpool_driver zs_zpool_driver = {
 	.map =		zs_zpool_map,
 	.unmap =	zs_zpool_unmap,
 	.total_size =	zs_zpool_total_size,
-	.compact =	zs_zpool_compact,
 };
 
 MODULE_ALIAS("zpool-zsmalloc");
@@ -985,7 +979,7 @@ static struct page *alloc_zspage(struct size_class *class, gfp_t flags)
 		struct page *page;
 
 		page = alloc_page(flags);
-		if (unlikely(!page))
+		if (!page)
 			goto cleanup;
 
 		INIT_LIST_HEAD(&page->lru);
@@ -1427,7 +1421,7 @@ unsigned long zs_malloc(struct zs_pool *pool, size_t size, gfp_t gfp)
 		return 0;
 
 	handle = alloc_handle(pool, gfp);
-	if (unlikely(!handle))
+	if (!handle)
 		return 0;
 
 	/* extra space in chunk to keep the handle */
