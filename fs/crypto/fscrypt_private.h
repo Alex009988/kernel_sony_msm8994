@@ -11,22 +11,19 @@
 #ifndef _FSCRYPT_PRIVATE_H
 #define _FSCRYPT_PRIVATE_H
 
-#define FS_FNAME_CRYPTO_DIGEST_SIZE	32
 #define __FS_HAS_ENCRYPTION 1
 #include <linux/fscrypt.h>
 #include <crypto/hash.h>
 
 /* Encryption parameters */
-#define FS_XTS_TWEAK_SIZE		16
+#define FS_IV_SIZE			16
 #define FS_AES_128_ECB_KEY_SIZE		16
+#define FS_AES_128_CBC_KEY_SIZE		16
+#define FS_AES_128_CTS_KEY_SIZE		16
 #define FS_AES_256_GCM_KEY_SIZE		32
 #define FS_AES_256_CBC_KEY_SIZE		32
 #define FS_AES_256_CTS_KEY_SIZE		32
 #define FS_AES_256_XTS_KEY_SIZE		64
-#define FS_MAX_KEY_SIZE			64
-
-#define FS_KEY_DESC_PREFIX		"fscrypt:"
-#define FS_KEY_DESC_PREFIX_SIZE		8
 
 #define FS_KEY_DERIVATION_NONCE_SIZE		16
 
@@ -52,12 +49,6 @@ struct fscrypt_context {
 
 #define FS_ENCRYPTION_CONTEXT_FORMAT_V1		1
 
-/* This is passed in from userspace into the kernel keyring */
-struct fscrypt_key {
-	u32 mode;
-	u8 raw[FS_MAX_KEY_SIZE];
-	u32 size;
-
 /**
  * For encrypted symlinks, the ciphertext length is stored at the beginning
  * of the string in little-endian format.
@@ -76,7 +67,7 @@ struct fscrypt_info {
 	u8 ci_filename_mode;
 	u8 ci_flags;
 	struct crypto_ablkcipher *ci_ctfm;
-	struct key *ci_keyring_key;
+	struct crypto_cipher *ci_essiv_tfm;
 	u8 ci_master_key[FS_KEY_DESCRIPTOR_SIZE];
 };
 
@@ -149,6 +140,6 @@ extern bool fscrypt_fname_encrypted_size(const struct inode *inode,
 					 u32 *encrypted_len_ret);
 
 /* keyinfo.c */
-extern int fscrypt_get_crypt_info(struct inode *);
+extern void __exit fscrypt_essiv_cleanup(void);
 
 #endif /* _FSCRYPT_PRIVATE_H */

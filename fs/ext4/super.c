@@ -4094,8 +4094,8 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	}
 	db_count = (sbi->s_groups_count + EXT4_DESC_PER_BLOCK(sb) - 1) /
 		   EXT4_DESC_PER_BLOCK(sb);
-	if (EXT4_HAS_INCOMPAT_FEATURE(sb, EXT4_FEATURE_INCOMPAT_FLEX_BG)) {
-		if (le32_to_cpu(es->s_first_meta_bg) >= db_count) {
+	if (EXT4_HAS_INCOMPAT_FEATURE(sb, EXT4_FEATURE_INCOMPAT_META_BG)) {
+		if (le32_to_cpu(es->s_first_meta_bg) > db_count) {
 			ext4_msg(sb, KERN_WARNING,
 				 "first meta block group too large: %u "
 				 "(group descriptor block count %u)",
@@ -4349,7 +4349,7 @@ no_journal:
 	}
 
 	block = ext4_count_free_clusters(sb);
-	ext4_free_blocks_count_set(sbi->s_es, 
+	ext4_free_blocks_count_set(sbi->s_es,
 				   EXT4_C2B(sbi, block));
 	ext4_superblock_csum_set(sb);
 	err = percpu_counter_init(&sbi->s_freeclusters_counter, block);

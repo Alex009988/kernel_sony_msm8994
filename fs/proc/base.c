@@ -213,10 +213,10 @@ static int proc_pid_cmdline(struct task_struct *task, char * buffer)
 		goto out_mm;	/* Shh! No looking before we're done */
 
  	len = mm->arg_end - mm->arg_start;
- 
+
 	if (len > PAGE_SIZE)
 		len = PAGE_SIZE;
- 
+
 	res = access_process_vm(task, mm->arg_start, buffer, len, 0);
 
 	// If the nul at the end of args has been overwritten, then
@@ -2211,7 +2211,7 @@ out:
 	return error;
 }
 
-static struct dentry *proc_pident_lookup(struct inode *dir, 
+static struct dentry *proc_pident_lookup(struct inode *dir,
 					 struct dentry *dentry,
 					 const struct pid_entry *ents,
 					 unsigned int nents)
@@ -2750,6 +2750,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("mounts",     S_IRUGO, proc_mounts_operations),
 	REG("mountinfo",  S_IRUGO, proc_mountinfo_operations),
 	REG("mountstats", S_IRUSR, proc_mountstats_operations),
+#ifdef CONFIG_PROCESS_RECLAIM
+	REG("reclaim", S_IWUSR, proc_reclaim_operations),
+#endif
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),
 	REG("smaps",      S_IRUGO, proc_pid_smaps_operations),
