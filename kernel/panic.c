@@ -3,11 +3,6 @@
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
-/*
- * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2014 Sony Mobile Communications Inc,
- * and licensed under the license of the file.
- */
 
 /*
  * This function is used through-out the kernel (including mm and fs)
@@ -27,7 +22,6 @@
 #include <linux/sysrq.h>
 #include <linux/init.h>
 #include <linux/nmi.h>
-#include <linux/crash_notes.h>
 #include <linux/console.h>
 
 #define CREATE_TRACE_POINTS
@@ -131,9 +125,6 @@ void panic(const char *fmt, ...)
 	 * Do we want to call this before we try to display a message?
 	 */
 	crash_kexec(NULL);
-
-	/* Store crash context for all other no panic cpus */
-	crash_notes_save_cpus();
 
 	/*
 	 * Note smp_send_stop is the usual smp shutdown function, which

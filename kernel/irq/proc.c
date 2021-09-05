@@ -399,7 +399,6 @@ void register_irq_proc(unsigned int irq, struct irq_desc *desc)
 
 out_unlock:
 	mutex_unlock(&register_lock);
-
 }
 
 void unregister_irq_proc(unsigned int irq, struct irq_desc *desc)

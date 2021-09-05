@@ -1,5 +1,5 @@
 /*
- * drivers/power/process.c - Functions for starting/stopping processes on 
+ * drivers/power/process.c - Functions for starting/stopping processes on
  *                           suspend transitions.
  *
  * Originally from swsusp.
@@ -17,6 +17,8 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/kmod.h>
+#include <linux/suspend.h>
+
 #include <linux/wakeup_reason.h>
 #include <linux/cpuset.h>
 
@@ -74,6 +76,9 @@ static int try_to_freeze_tasks(bool user_only)
 			log_suspend_abort_reason(suspend_abort);
 #endif
 			wakeup = true;
+#ifdef CONFIG_PM_SLEEP_TRACE
+			suspend_failed_ws_update();
+#endif
 			break;
 		}
 
@@ -93,15 +98,16 @@ static int try_to_freeze_tasks(bool user_only)
 	elapsed_msecs = elapsed_msecs64;
 
 	if (wakeup) {
-		printk("\n");
 		printk(KERN_ERR "Freezing of tasks aborted after %d.%03d seconds",
 		       elapsed_msecs / 1000, elapsed_msecs % 1000);
 	} else if (todo) {
-		printk("\n");
 		printk(KERN_ERR "Freezing of tasks failed after %d.%03d seconds"
 		       " (%d tasks refusing to freeze, wq_busy=%d):\n",
 		       elapsed_msecs / 1000, elapsed_msecs % 1000,
 		       todo - wq_busy, wq_busy);
+#ifdef CONFIG_PM_SLEEP_TRACE
+		suspend_failed_freeze_inc(wakeup ? 1 : 0);
+#endif
 
 		read_lock(&tasklist_lock);
 		do_each_thread(g, p) {
@@ -118,27 +124,25 @@ static int try_to_freeze_tasks(bool user_only)
 	return todo ? -EBUSY : 0;
 }
 
-static bool __check_frozen_processes(void)
-{
-	struct task_struct *g, *p;
-
-	for_each_process_thread(g, p)
-		if (p != current && !freezer_should_skip(p) && !frozen(p))
-			return false;
-
-	return true;
-}
-
 /*
  * Returns true if all freezable tasks (except for current) are frozen already
  */
 static bool check_frozen_processes(void)
 {
-	bool ret;
+	struct task_struct *g, *p;
+	bool ret = true;
 
 	read_lock(&tasklist_lock);
-	ret = __check_frozen_processes();
+	for_each_process_thread(g, p) {
+		if (p != current && !freezer_should_skip(p) &&
+		    !frozen(p)) {
+			ret = false;
+			goto done;
+		}
+	}
+done:
 	read_unlock(&tasklist_lock);
+
 	return ret;
 }
 
@@ -159,7 +163,6 @@ int freeze_processes(void)
 	if (!pm_freezing)
 		atomic_inc(&system_freezing_cnt);
 
-	pm_wakeup_clear();
 	pr_debug("Freezing user space processes ... ");
 	pm_freezing = true;
 	oom_kills_saved = oom_kills_count();
@@ -174,12 +177,11 @@ int freeze_processes(void)
 		 * on the way out so we have to double check for race.
 		 */
 		if (oom_kills_count() != oom_kills_saved &&
-		    !check_frozen_processes()) {
+				!check_frozen_processes()) {
 			__usermodehelper_set_disable_depth(UMH_ENABLED);
 			printk("OOM in progress.");
 			error = -EBUSY;
-		} else {
-			printk("done.");
+			goto done;
 		}
 		pr_debug("done.");
 	}
