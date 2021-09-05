@@ -1,11 +1,11 @@
 /*
  * Hash algorithms.
- * 
+ *
  * Copyright (c) 2008 Herbert Xu <herbert@gondor.apana.org.au>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option) 
+ * Software Foundation; either version 2 of the License, or (at your option)
  * any later version.
  *
  */
@@ -69,14 +69,6 @@ int crypto_unregister_ahash(struct ahash_alg *alg);
 int ahash_register_instance(struct crypto_template *tmpl,
 			    struct ahash_instance *inst);
 void ahash_free_instance(struct crypto_instance *inst);
-
-int shash_no_setkey(struct crypto_shash *tfm, const u8 *key,
-		    unsigned int keylen);
-
-static inline bool crypto_shash_alg_has_setkey(struct shash_alg *alg)
-{
-	return alg->setkey != shash_no_setkey;
-}
 
 int crypto_init_ahash_spawn(struct crypto_ahash_spawn *spawn,
 			    struct hash_alg_common *alg,
@@ -157,16 +149,6 @@ static inline struct ahash_instance *ahash_alloc_instance(
 	const char *name, struct crypto_alg *alg)
 {
 	return crypto_alloc_instance2(name, alg, ahash_instance_headroom());
-}
-
-static inline void ahash_request_complete(struct ahash_request *req, int err)
-{
-	req->base.complete(&req->base, err);
-}
-
-static inline u32 ahash_request_flags(struct ahash_request *req)
-{
-	return req->base.flags;
 }
 
 static inline struct crypto_ahash *crypto_spawn_ahash(
