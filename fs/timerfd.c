@@ -127,9 +127,9 @@ static void __timerfd_remove_cancel(struct timerfd_ctx *ctx)
 
 static void timerfd_remove_cancel(struct timerfd_ctx *ctx)
 {
-		spin_lock(&ctx->cancel_lock);
-		__timerfd_remove_cancel(ctx);
-		spin_unlock(&ctx->cancel_lock);
+	spin_lock(&ctx->cancel_lock);
+	__timerfd_remove_cancel(ctx);
+	spin_unlock(&ctx->cancel_lock);
 }
 
 static bool timerfd_canceled(struct timerfd_ctx *ctx)
@@ -153,10 +153,10 @@ static void timerfd_setup_cancel(struct timerfd_ctx *ctx, int flags)
 			list_add_rcu(&ctx->clist, &cancel_list);
 			spin_unlock(&cancel_lock);
 		}
-		} else {
-				__timerfd_remove_cancel(ctx);
-		}
-		spin_unlock(&ctx->cancel_lock);
+	} else {
+		__timerfd_remove_cancel(ctx);
+	}
+	spin_unlock(&ctx->cancel_lock);
 }
 
 static ktime_t timerfd_get_remaining(struct timerfd_ctx *ctx)
@@ -339,11 +339,6 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 	     clockid != CLOCK_POWEROFF_ALARM))
 		return -EINVAL;
 
-	if (!capable(CAP_WAKE_ALARM) &&
-	    (clockid == CLOCK_REALTIME_ALARM ||
-	     clockid == CLOCK_BOOTTIME_ALARM))
-		return -EPERM;
-
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
@@ -374,7 +369,7 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 	return ufd;
 }
 
-static int do_timerfd_settime(int ufd, int flags, 
+static int do_timerfd_settime(int ufd, int flags,
 		const struct itimerspec *new,
 		struct itimerspec *old)
 {
@@ -391,11 +386,6 @@ static int do_timerfd_settime(int ufd, int flags,
 	if (ret)
 		return ret;
 	ctx = f.file->private_data;
-
-	if (!capable(CAP_WAKE_ALARM) && isalarm(ctx)) {
-		fdput(f);
-		return -EPERM;
-	}
 
 	timerfd_setup_cancel(ctx, flags);
 

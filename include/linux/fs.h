@@ -493,15 +493,6 @@ struct block_device {
 
 int mapping_tagged(struct address_space *mapping, int tag);
 
-/*
- * Might pages of this file be mapped into userspace?
- */
-static inline int mapping_mapped(struct address_space *mapping)
-{
-	return	!RB_EMPTY_ROOT(&mapping->i_mmap) ||
-		!list_empty(&mapping->i_mmap_nonlinear);
-}
-
 static inline void i_mmap_lock_write(struct address_space *mapping)
 {
 	down_write(&mapping->i_mmap_rwsem);
@@ -520,6 +511,15 @@ static inline void i_mmap_lock_read(struct address_space *mapping)
 static inline void i_mmap_unlock_read(struct address_space *mapping)
 {
 	up_read(&mapping->i_mmap_rwsem);
+}
+
+/*
+ * Might pages of this file be mapped into userspace?
+ */
+static inline int mapping_mapped(struct address_space *mapping)
+{
+	return	!RB_EMPTY_ROOT(&mapping->i_mmap) ||
+		!list_empty(&mapping->i_mmap_nonlinear);
 }
 
 /*
@@ -1395,10 +1395,6 @@ struct super_block {
 	int s_stack_depth;
 };
 
-/* superblock cache pruning functions */
-extern void prune_icache_sb(struct super_block *sb, int nr_to_scan);
-extern void prune_dcache_sb(struct super_block *sb, int nr_to_scan);
-
 extern struct timespec current_fs_time(struct super_block *sb);
 
 /*
@@ -1712,8 +1708,8 @@ struct super_operations {
 	ssize_t (*quota_write)(struct super_block *, int, const char *, size_t, loff_t);
 #endif
 	int (*bdev_try_to_free_page)(struct super_block*, struct page*, gfp_t);
-	int (*nr_cached_objects)(struct super_block *);
-	void (*free_cached_objects)(struct super_block *, int);
+	long (*nr_cached_objects)(struct super_block *);
+	long (*free_cached_objects)(struct super_block *, long);
 };
 
 /*
@@ -2130,7 +2126,6 @@ extern struct file * dentry_open(const struct path *, int, const struct cred *);
 extern int filp_close(struct file *, fl_owner_t id);
 
 extern struct filename *getname(const char __user *);
-extern struct filename *getname_kernel(const char *);
 
 enum {
 	FILE_CREATED = 1,

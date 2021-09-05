@@ -268,44 +268,6 @@ static void d_free(struct dentry *dentry)
 	dentry_free(dentry);
 }
 
-void take_dentry_name_snapshot(struct name_snapshot *name, struct dentry *dentry)
-{
-	spin_lock(&dentry->d_lock);
-	if (unlikely(dname_external(dentry))) {
-		u32 len;
-		char *p = NULL;
-
-		for (;;) {
-			len = dentry->d_name.len;
-			spin_unlock(&dentry->d_lock);
-
-			if (p)
-				kfree(p);
-			p = kmalloc(len + 1, GFP_KERNEL | __GFP_NOFAIL);
-
-			spin_lock(&dentry->d_lock);
-			if (dentry->d_name.len <= len)
-				break;
-		}
-		memcpy(p, dentry->d_name.name, dentry->d_name.len + 1);
-		spin_unlock(&dentry->d_lock);
-
-		name->name = p;
-	} else {
-		memcpy(name->inline_name, dentry->d_iname, DNAME_INLINE_LEN);
-		spin_unlock(&dentry->d_lock);
-		name->name = name->inline_name;
-	}
-}
-EXPORT_SYMBOL(take_dentry_name_snapshot);
-
-void release_dentry_name_snapshot(struct name_snapshot *name)
-{
-	if (unlikely(name->name != name->inline_name))
-		kfree(name->name);
-}
-EXPORT_SYMBOL(release_dentry_name_snapshot);
-
 /**
  * dentry_rcuwalk_barrier - invalidate in-progress rcu-walk lookups
  * @dentry: the target dentry
@@ -367,6 +329,33 @@ static void dentry_unlink_inode(struct dentry * dentry)
 	else
 		iput(inode);
 }
+
+void take_dentry_name_snapshot(struct name_snapshot *name, struct dentry *dentry)
+{
+       spin_lock(&dentry->d_lock);
+       if (unlikely(dname_external(dentry))) {
+               struct external_name *p = external_name(dentry);
+               atomic_inc(&p->u.count);
+               spin_unlock(&dentry->d_lock);
+               name->name = p->name;
+       } else {
+               memcpy(name->inline_name, dentry->d_iname, DNAME_INLINE_LEN);
+               spin_unlock(&dentry->d_lock);
+               name->name = name->inline_name;
+       }
+}
+EXPORT_SYMBOL(take_dentry_name_snapshot);
+
+void release_dentry_name_snapshot(struct name_snapshot *name)
+{
+       if (unlikely(name->name != name->inline_name)) {
+               struct external_name *p;
+               p = container_of(name->name, struct external_name, name[0]);
+               if (unlikely(atomic_dec_and_test(&p->u.count)))
+                       kfree_rcu(p, u.head);
+       }
+}
+EXPORT_SYMBOL(release_dentry_name_snapshot);
 
 /*
  * dentry_lru_(add|del|prune|move_tail) must be called with d_lock held.
@@ -888,11 +877,12 @@ static void shrink_dentry_list(struct list_head *list)
  * This function may fail to free any resources if all the dentries are in
  * use.
  */
-void prune_dcache_sb(struct super_block *sb, int count)
+long prune_dcache_sb(struct super_block *sb, unsigned long nr_to_scan)
 {
 	struct dentry *dentry;
 	LIST_HEAD(referenced);
 	LIST_HEAD(tmp);
+	long freed = 0;
 
 relock:
 	spin_lock(&dcache_lru_lock);
@@ -915,7 +905,8 @@ relock:
 			list_move_tail(&dentry->d_lru, &tmp);
 			dentry->d_flags |= DCACHE_SHRINK_LIST;
 			spin_unlock(&dentry->d_lock);
-			if (!--count)
+			freed++;
+			if (!--nr_to_scan)
 				break;
 		}
 		cond_resched_lock(&dcache_lru_lock);
@@ -925,6 +916,7 @@ relock:
 	spin_unlock(&dcache_lru_lock);
 
 	shrink_dentry_list(&tmp);
+	return freed;
 }
 
 /**
