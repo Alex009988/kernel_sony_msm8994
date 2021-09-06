@@ -1092,7 +1092,7 @@ static inline int policy_to_flow_dir(int dir)
 	}
 }
 
-static struct xfrm_policy *xfrm_sk_policy_lookup(const struct sock *sk, int dir,
+static struct xfrm_policy *xfrm_sk_policy_lookup(struct sock *sk, int dir,
 						 const struct flowi *fl, u16 family)
 {
 	struct xfrm_policy *pol;
@@ -1177,7 +1177,7 @@ EXPORT_SYMBOL(xfrm_policy_delete);
 
 int xfrm_sk_policy_insert(struct sock *sk, int dir, struct xfrm_policy *pol)
 {
-	struct net *net = sock_net(sk);
+	struct net *net = xp_net(pol);
 	struct xfrm_policy *old_pol;
 
 #ifdef CONFIG_XFRM_SUB_POLICY
