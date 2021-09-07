@@ -29,7 +29,7 @@
 	interrupt-parent = <&intc>;
 
 	chosen {
-		bootargs = "noirqdebug";
+		bootargs = "noirqdebug rcupdate.rcu_expedited=1";
 	};
 
 	firmware: firmware {
@@ -52,7 +52,7 @@
 	aliases {
 		sdhc1 = &sdhc_1; /* SDC1 eMMC slot */
 		sdhc2 = &sdhc_2; /* SDC2 SD card slot */
-		sdhc3 = &sdhc_3;
+		sdhc3 = &sdhc_3; /* SDC3 SDIO slot */
 		i2c6 = &i2c_6; /* I2C6 NFC qup6 device */
 		i2c1 = &i2c_1;
 		i2c2 = &i2c_2;
@@ -99,6 +99,7 @@
 		CPU0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
+			clock-frequency = <1555200000>;
 			reg = <0x0>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc0>;
@@ -127,6 +128,7 @@
 		CPU1: cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
+			clock-frequency = <1555200000>;
 			reg = <0x1>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc1>;
@@ -146,6 +148,7 @@
 		CPU2: cpu@2 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
+			clock-frequency = <1555200000>;
 			reg = <0x2>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc2>;
@@ -165,6 +168,7 @@
 		CPU3: cpu@3 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
+			clock-frequency = <1555200000>;
 			reg = <0x3>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc3>;
@@ -184,6 +188,7 @@
 		CPU4: cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
+			clock-frequency = <1958400000>;
 			reg = <0x100>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc4>;
@@ -218,6 +223,7 @@
 		CPU5: cpu@101 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
+			clock-frequency = <1958400000>;
 			reg = <0x101>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc5>;
@@ -243,6 +249,7 @@
 		CPU6: cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
+			clock-frequency = <1958400000>;
 			reg = <0x102>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc6>;
@@ -268,6 +275,7 @@
 		CPU7: cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
+			clock-frequency = <1958400000>;
 			reg = <0x103>;
 			enable-method = "qcom,8994-arm-cortex-acc";
 			qcom,acc = <&acc7>;
@@ -293,7 +301,7 @@
 		energy-costs {
  			CPU_COST_0: core-cost0 {
  				busy-cost-data = <
-					119	5	/*302*/
+					120     4	/*302*/
 					136     7
 					174    16
 					212    26
@@ -302,9 +310,9 @@
 					309    76
 					339   102
 					424   161
-					509   227	
-					559   272	/*1536*/
-					600   316	/*1624*/
+					509   227	/*1440*/
+					543   242	/*1536*/
+					577   257	/*1632*/
  				>;
  				idle-cost-data = <
  			  		33 25 23 18
@@ -312,19 +320,21 @@
  			};
  			CPU_COST_1: core-cost1 {
  				busy-cost-data = <
-					 220   306
-					 290   320
-					 360   334
-					 425   432
-					 490   533
-					 599   721
-					 708   917
-		       			 762  1058
-		       			 817  1203
-					 871  1410
-		       			 926  1612
-		       			 975  1868
-		       			1024  2126
+					 180    300	/*302*/
+					 220    306
+					 290    320
+					 360    334
+					 425    432
+					 490    533
+					 599    721
+					 708    917
+					 762   1058
+					 817   1203
+					 871   1410
+					 926   1612
+					 975   1868
+					1024   2126	/*1824*/
+					1078   2238	/*1920*/
 				>;
 				idle-cost-data = <
 			  		65 60 28 21
@@ -332,8 +342,7 @@
  			};
  			CLUSTER_COST_0: cluster-cost0 {
  				busy-cost-data = <
- 					184    74
-					110    10	/*302*/
+					120     7	/*302*/
 					136    14
 					174    27
 					212    39
@@ -342,9 +351,9 @@
 					309    79
 					339    94
 					424   132
-					509   165
-					559   202	/*1536*/
-					600   226	/*1624*/
+					509   165	/*1440*/
+					543   176	/*1536*/
+					577   187	/*1632*/
 				>;
 				idle-cost-data = <
 			 		0 0 0 0
@@ -352,6 +361,7 @@
 			};
 			CLUSTER_COST_1: cluster-cost1 {
 				busy-cost-data = <
+					 180   80	/*302*/
 					 220   80
 					 290   80
 					 360   80
@@ -359,12 +369,13 @@
 					 490   80
 					 599   80
 					 708   80
-		       			 762   80
-		       			 817   80
+					 762   80
+					 817   80
 					 871   80
-		       			 926   80
-		       			 975   80
-		       			1024   80
+					 926   80
+					 975   80
+					1024   80	/*1824*/
+					1078   160	/*1920*/
 				>;
 				idle-cost-data = <
 			 		0 0 0 0
@@ -1049,6 +1060,7 @@
 		qcom,bark-time = <11000>;
 		qcom,pet-time = <10000>;
 		qcom,ipi-ping;
+		qcom,wakeup-enable;
 	};
 
 	qcom,msm-rtb {
@@ -1218,12 +1230,13 @@
 
 	sdhc_1: sdhci@f9824900 {
 		compatible = "qcom,sdhci-msm";
-		reg = <0xf9824900 0x1a0>, <0xf9824000 0x800>;
-		reg-names = "hc_mem", "core_mem";
+		reg = <0xf9824900 0x1a0>, <0xf9824000 0x800>, <0xf9824e00 0x200>;
+		reg-names = "hc_mem", "core_mem", "cmdq_mem";
 
 		interrupts = <0 123 0>, <0 138 0>;
 		interrupt-names = "hc_irq", "pwr_irq";
 
+		qcom,large-address-bus;
 		qcom,bus-width = <8>;
 		qcom,cpu-dma-latency-us = <301 70>;
 		qcom,cpu-affinity = "affine_cores";
@@ -1264,6 +1277,7 @@
 		clocks = <&clock_gcc clk_gcc_sdcc2_ahb_clk>,
 			 <&clock_gcc clk_gcc_sdcc2_apps_clk>;
 
+		qcom,large-address-bus;
 		qcom,bus-width = <4>;
 		qcom,cpu-dma-latency-us = <301 70>;
 		qcom,cpu-affinity = "affine_cores";
@@ -1299,6 +1313,7 @@
 		clocks = <&clock_gcc clk_gcc_sdcc3_ahb_clk>,
 			 <&clock_gcc clk_gcc_sdcc3_apps_clk>;
 
+		qcom,large-address-bus;
 		qcom,bus-width = <4>;
 		qcom,cpu-dma-latency-us = <301 70>;
 		qcom,cpu-affinity = "affine_cores";
@@ -1442,6 +1457,7 @@
 		qcom,bam-consumer-pipe-index = <12>;
 		qcom,bam-producer-pipe-index = <13>;
 		qcom,master-id = <86>;
+		qcom,rt-priority;
 		qcom,use-pinctrl;
 		pinctrl-names = "spi_default", "spi_sleep";
 		pinctrl-0 = <&spi_0_active &spi_0_cs1_active>;
@@ -3335,7 +3351,7 @@
 		qcom,freq-mitigation-temp = <95>;
 		qcom,freq-mitigation-temp-hysteresis = <10>;
 		qcom,freq-mitigation-value = <960000>;
-		qcom,freq-mitigation-control-mask = <0xF0>;
+		qcom,freq-mitigation-control-mask = <0xFF>;
 		qcom,online-hotplug-core;
 		qcom,synchronous-cluster-id = <0 1>;
 		qcom,mx-restriction-temp = <5>;
@@ -3427,7 +3443,7 @@
 		reg = <0xfc4b8000 0x1000>;
 		qcom,low-hyst-temp = <10>;
 		qcom,high-hyst-temp = <5>;
-		qcom,polling-interval = <50>;
+		qcom,polling-interval = <100>;
 
 		qcom,core-mapping {
 			qcom,cpu0-chars {
