@@ -2,6 +2,7 @@
  * drivers/base/power/wakeup.c - System wakeup events framework
  *
  * Copyright (c) 2010 Rafael J. Wysocki <rjw@sisk.pl>, Novell Inc.
+ * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This file is released under the GPLv2.
  */
@@ -13,6 +14,7 @@
 #include <linux/export.h>
 #include <linux/suspend.h>
 #include <linux/seq_file.h>
+#include <linux/suspend.h>
 #include <linux/types.h>
 #include <trace/events/power.h>
 
@@ -29,9 +31,6 @@
  * if wakeup events are registered during or immediately before the transition.
  */
 bool events_check_enabled __read_mostly;
-
-/* If set and the system is suspending, terminate the suspend. */
-static bool pm_abort_suspend __read_mostly;
 
 /*
  * Combined counters of registered wakeup events and wakeup events in progress.
@@ -779,6 +778,32 @@ static void print_active_wakeup_sources(void)
 	rcu_read_unlock();
 }
 
+#ifdef CONFIG_PM_SLEEP_TRACE
+void suspend_failed_ws_update(void)
+{
+	struct wakeup_source *ws;
+	int active = 0;
+	struct wakeup_source *last_activity_ws = NULL;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
+		if (ws->active) {
+			active = 1;
+			suspend_freeze_failed_ws(ws->name);
+		} else if (!active &&
+			   (!last_activity_ws ||
+			    ktime_to_ns(ws->last_time) >
+			    ktime_to_ns(last_activity_ws->last_time))) {
+			last_activity_ws = ws;
+		}
+	}
+
+	if (!active && last_activity_ws)
+		suspend_freeze_failed_ws(last_activity_ws->name);
+	rcu_read_unlock();
+}
+#endif
+
 /**
  * pm_wakeup_pending - Check if power transition in progress should be aborted.
  *
@@ -805,18 +830,7 @@ bool pm_wakeup_pending(void)
 	if (ret)
 		print_active_wakeup_sources();
 
-	return ret || pm_abort_suspend;
-}
-
-void pm_system_wakeup(void)
-{
-	pm_abort_suspend = true;
-	freeze_wake();
-}
-
-void pm_wakeup_clear(void)
-{
-	pm_abort_suspend = false;
+	return ret;
 }
 
 /**
