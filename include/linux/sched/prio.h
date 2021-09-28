@@ -27,10 +27,14 @@
 /*
  * Convert nice value [19,-20] to rlimit style value [1,40].
  */
+
 static inline long nice_to_rlimit(long nice)
 {
 	return (MAX_NICE - nice + 1);
 }
+
+#define NICE_TO_PRIO(nice)	((nice) + DEFAULT_PRIO)
+#define PRIO_TO_NICE(prio)	((prio) - DEFAULT_PRIO)
 
 /*
  * Convert rlimit style value [1,40] to nice value [-20, 19].
