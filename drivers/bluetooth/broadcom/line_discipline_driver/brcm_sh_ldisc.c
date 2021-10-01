@@ -1034,24 +1034,20 @@ int brcm_hci_uart_tx_wakeup(struct hci_uart *hu)
     struct tty_struct *tty = hu->tty;
     struct sk_buff *skb;
     unsigned long lock_flags;
-    bool wakeup = true;
     if (test_and_set_bit(HCI_UART_SENDING, &hu->tx_state))
     {
         set_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
         return 0;
     }
 
+    BT_LDISC_DBG(V4L2_DBG_TX, "hci_uart_tx_wakeup");
+    brcm_btsleep_wake(sleep);
+
     do{
         clear_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
 
         while ((skb = brcm_hci_uart_dequeue(hu))) {
             int len;
-            if (wakeup) {
-                BT_LDISC_DBG(V4L2_DBG_TX, "hci_uart_tx_wakeup");
-                brcm_btsleep_wake(sleep);
-                wakeup = false;
-            }
-
             spin_lock_irqsave(&hu->lock, lock_flags);
 
             len = tty->ops->write(tty, skb->data, skb->len);
@@ -1165,7 +1161,7 @@ long brcm_sh_ldisc_register(struct sh_proto_s *new_proto)
         {
             jiffi2 = jiffies;
             diff = (long)jiffi2 - (long)jiffi1;
-            if ( ((diff * HZ * 10) / HZ) >= 1000)
+            if ( ((diff *1000)/HZ) >= 1000)
                 is_print_reg_error = 1;
         }
         return -1;
@@ -1886,8 +1882,7 @@ long brcm_sh_ldisc_write(struct sk_buff *skb)
                 brcm_hci_write(hu, skb->data, skb->len);
 #endif
             brcm_hci_uart_tx_wakeup(hu);
-            if (!wait_for_completion_timeout(&hu->cmd_rcvd,
-                    msecs_to_jiffies(CMD_WR_TIME))) {
+            if (!wait_for_completion_timeout(&hu->cmd_rcvd, msecs_to_jiffies(5000))) {
                 pr_err(" waiting for command response - timed out");
                 return 0;
             }
