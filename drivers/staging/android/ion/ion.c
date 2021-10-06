@@ -3,7 +3,7 @@
  * drivers/staging/android/ion/ion.c
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2011-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2015,2017, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -436,14 +436,13 @@ int ion_handle_put(struct ion_handle *handle)
 /* Must hold the client lock */
 static void user_ion_handle_get(struct ion_handle *handle)
 {
-	if (handle->user_ref_count++ == 0) {
+	if (handle->user_ref_count++ == 0)
 		kref_get(&handle->ref);
-	}
 }
 
 /* Must hold the client lock */
-static struct ion_handle *user_ion_handle_get_check_overflow
-					(struct ion_handle *handle)
+static struct ion_handle *user_ion_handle_get_check_overflow(
+	struct ion_handle *handle)
 {
 	if (handle->user_ref_count + 1 == 0)
 		return ERR_PTR(-EOVERFLOW);
@@ -471,9 +470,8 @@ static int user_ion_handle_put_nolock(struct ion_handle *handle)
 {
 	int ret = 0;
 
-	if (--handle->user_ref_count == 0) {
+	if (--handle->user_ref_count == 0)
 		ret = ion_handle_put_nolock(handle);
-	}
 
 	return ret;
 }
@@ -695,7 +693,7 @@ static void ion_free_nolock(struct ion_client *client, struct ion_handle *handle
 }
 
 static void user_ion_free_nolock(struct ion_client *client,
-						struct ion_handle *handle)
+				 struct ion_handle *handle)
 {
 	bool valid_handle;
 

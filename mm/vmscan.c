@@ -888,12 +888,12 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 *    the caller does not have __GFP_IO. In this case mark
 		 *    the page for immediate reclaim and continue scanning.
 		 *
-		 *    Require may_enter_fs to wait on writeback, because
-		 *    fs may not have submitted IO yet. And a loop driver
-		 *    thread may enter reclaim, and deadlock if it waits
-		 *    on a page for which it is needed to do the write
-		 *    (loop masks off __GFP_IO|__GFP_FS for this reason);
-		 *    but more thought would probably show more reasons.
+		 *    Require may_enter_fs because we would wait on fs, which
+		 *    may not have submitted IO yet. And the loop driver might
+		 *    enter reclaim, and deadlock if it waits on a page for
+		 *    which it is needed to do the write (loop masks off
+		 *    __GFP_IO|__GFP_FS for this reason); but more thought
+		 *    would probably show more reasons.
 		 *
 		 * 3) memcg encounters a page that is not already marked
 		 *    PageReclaim. memcg does not have any dirty pages
