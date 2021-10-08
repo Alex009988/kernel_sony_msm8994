@@ -1489,8 +1489,11 @@ CONFIG_ATH_CARDS=y
 # CONFIG_ATH_DEBUG is not set
 # CONFIG_ATH5K_PCI is not set
 # CONFIG_ATH6KL is not set
-# CONFIG_WIL6210 is not set
-# CONFIG_BCMDHD is not set
+CONFIG_WIL6210=y
+CONFIG_BCMDHD=y
+CONFIG_BCM4356=y
+CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/wlan/bcmdhd/fw_bcmdhd.bin"
+CONFIG_BCMDHD_NVRAM_PATH="/system/etc/firmware/wlan/bcmdhd/bcmdhd.cal"
 # CONFIG_BCMDHD_SUZURAN is not set
 # CONFIG_BRCMFMAC is not set
 # CONFIG_HOSTAP is not set
